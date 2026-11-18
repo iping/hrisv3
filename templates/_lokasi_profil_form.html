@@ -1,0 +1,23 @@
+<form method="post" action="{{ url_for('data_lokasi_profil', location_id=location.id) }}">
+  <input type="hidden" name="tab" value="profil">
+  {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+  <label>Nama<input type="text" name="nama" required value="{{ location.name }}"></label>
+  <label>Tenggang terlambat, menit<input type="number" name="tenggang" min="0" required value="{{ location.grace_minutes }}"></label>
+  <label>Minimum kehadiran, jam<input type="number" name="min_jam" min="0" step="0.5" placeholder="Kosong = belum diatur" value="{{ location.min_jam }}"></label>
+  <label>Minimum hari hadir per bulan<input type="number" name="min_hadir" min="0" max="31" placeholder="Kosong = belum diatur" value="{{ location.min_work_days if location.min_work_days is not none else '' }}"></label>
+  <label>Minimum hari off per bulan<input type="number" name="min_off" min="0" max="31" placeholder="Kosong = belum diatur" value="{{ location.min_off_days if location.min_off_days is not none else '' }}"></label>
+  <h2>Titik absensi GPS</h2>
+  <p class="muted">Absensi di lokasi ini sah bila posisi petugas berada di dalam jarak yang dipilih dari titik berikut. Tempel koordinat dari peta, misalnya -6.200000, 106.816000, ke kolom lintang. Kosongkan titik dan pilih Belum diatur bila lokasi ini belum memakai GPS.</p>
+  <label>Lintang<input type="text" name="lintang" inputmode="decimal" placeholder="-6.200000" value="{{ location.latitude_text }}"></label>
+  <label>Bujur<input type="text" name="bujur" inputmode="decimal" placeholder="106.816000" value="{{ location.longitude_text }}"></label>
+  <label>Jarak absensi
+    <select name="jarak">
+      <option value="">Belum diatur</option>
+      {% for meters in radii %}
+      <option value="{{ meters }}" {% if location.gps_radius_meters == meters %}selected{% endif %}>{{ meters }} meter</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="flag-checks"><span><input type="checkbox" name="aktif" value="1" {% if location.active %}checked{% endif %}> Lokasi aktif</span></label>
+  <button class="action" type="submit">Simpan profil</button>
+</form>

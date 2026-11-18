@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lokasi dan petugas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set pay = 'lokasi' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    {% include "_payroll.html" %}
+    <h1>Lokasi</h1>
+    <p class="lede">
+      Pilih lokasi untuk melihat petugas di dalamnya, atau buka <a class="text-link" href="{{ url_for('kelola_petugas') }}">daftar semua petugas</a> untuk menandai resign dan petugas baru.
+      Lokasi yang dimatikan tidak masuk angka transfer.
+      {% if page.rekening.total %}Rekening terisi {{ page.rekening.filled }} dari {{ page.rekening.total }} petugas.{% endif %}
+      {% if page.meta.period %}Daftar ini mengikuti {{ page.meta.source_name }} · {{ page.meta.period }}.{% endif %}
+    </p>
+    {% if saved %}
+    <p class="banner banner-ok" role="status">Lokasi tersimpan. Analisis berikutnya memakai pilihan ini.</p>
+    {% endif %}
+    {% if not page.locations %}
+    <p class="lede">Belum ada tarikan. Upload file HRIS dulu, lalu kembali ke halaman ini.</p>
+    {% else %}
+    <section class="stats">
+      <article>
+        <p>Lokasi aktif</p>
+        <strong>{{ page.active_count }} / {{ page.locations|length }}</strong>
+      </article>
+      <article>
+        <p>Resign</p>
+        <strong><a class="stat-link" href="{{ url_for('kelola_petugas', status='resign') }}">{{ page.resign_count }}</a></strong>
+      </article>
+      <article>
+        <p>Petugas baru</p>
+        <strong><a class="stat-link" href="{{ url_for('kelola_petugas', status='baru') }}">{{ page.baru_count }}</a></strong>
+      </article>
+    </section>
+
+    <div class="tools">
+      <input id="q" type="search" placeholder="Cari lokasi" aria-label="Cari lokasi">
+      <div class="chips" id="chips">
+        <button type="button" class="chip is-on" data-filter="all">Semua</button>
+        <button type="button" class="chip" data-filter="on">Ikut payroll</button>
+        <button type="button" class="chip" data-filter="off">Tidak ikut</button>
+        <button type="button" class="chip" data-filter="resign">Ada resign</button>
+        <button type="button" class="chip" data-filter="baru">Ada petugas baru</button>
+      </div>
+    </div>
+    <p class="muted" id="shown">{{ page.locations|length }} lokasi</p>
+    <div class="loc-grid" id="locations">
+      {% for row in page.locations %}
+      <article class="loc-card{% if not row.active %} is-off{% endif %}" data-name="{{ row.name|lower }}" data-state="{{ 'on' if row.active else 'off' }}" data-resign="{{ row.resign_count }}" data-baru="{{ row.baru_count }}">
+        <a class="loc-open" href="{{ url_for('kelola_lokasi', lokasi=row.name) }}">
+          <div class="loc-head">
+            <h2>{{ row.name }}</h2>
+            <span class="pill {{ 'pill-on' if row.active else 'pill-off' }}">{{ 'Ikut' if row.active else 'Mati' }}</span>
+          </div>
+          <p class="loc-meta">{{ row.people_count }} petugas</p>
+          <div class="pills">
+            {% if row.resign_count %}<span class="pill pill-resign">{{ row.resign_count }} resign</span>{% endif %}
+            {% if row.baru_count %}<span class="pill pill-baru">{{ row.baru_count }} baru</span>{% endif %}
+          </div>
+          <p class="loc-pay">{{ row.paid | rp }}</p>
+          <span class="loc-go">Lihat petugas</span>
+        </a>
+        <form class="loc-foot" method="post" action="{{ url_for('save_kelola') }}">
+          <input type="hidden" name="location" value="{{ row.name }}">
+          {% if row.active %}
+          <button type="submit" name="set_active" value="0">Matikan</button>
+          {% else %}
+          <button type="submit" name="set_active" value="1">Aktifkan</button>
+          {% endif %}
+        </form>
+      </article>
+      {% endfor %}
+    </div>
+    <p id="empty" class="lede" hidden>Tidak ada lokasi yang cocok dengan pencarian ini.</p>
+    {% endif %}
+  </main>
+  <script>
+    const query = document.getElementById("q");
+    const chips = document.getElementById("chips");
+    const shown = document.getElementById("shown");
+    const empty = document.getElementById("empty");
+    let mode = "all";
+
+    function applyFilter() {
+      if (!query) return;
+      const text = query.value.toLowerCase().trim();
+      let visible = 0;
+      document.querySelectorAll("#locations article").forEach(function (card) {
+        const matchesText = !text || card.dataset.name.indexOf(text) !== -1;
+        const matchesMode = mode === "all"
+          || (mode === "on" && card.dataset.state === "on")
+          || (mode === "off" && card.dataset.state === "off")
+          || (mode === "resign" && Number(card.dataset.resign) > 0)
+          || (mode === "baru" && Number(card.dataset.baru) > 0);
+        const show = matchesText && matchesMode;
+        card.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (shown) shown.textContent = visible + " lokasi";
+      if (empty) empty.hidden = visible !== 0;
+    }
+
+    if (query) {
+      query.addEventListener("input", applyFilter);
+      chips.addEventListener("click", function (event) {
+        const button = event.target.closest("button");
+        if (!button) return;
+        mode = button.dataset.filter;
+        chips.querySelectorAll("button").forEach(function (item) {
+          item.classList.toggle("is-on", item === button);
+        });
+        applyFilter();
+      });
+    }
+  </script>
+</body>
+</html>

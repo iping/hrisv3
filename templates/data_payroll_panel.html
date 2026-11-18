@@ -1,0 +1,86 @@
+<article class="drawer-sheet" data-officer="{{ person.id }}" data-pay-mode="{{ mode }}" {% if saved and not salah %}data-saved="1"{% endif %}>
+  <h1>{{ person.nama }}</h1>
+  <div class="drawer-person">
+    <strong>{{ person.nama }}</strong>
+    <span>{{ person.username }}{% if person.lokasi %} · {{ person.lokasi }}{% endif %} · {{ mode_label }}</span>
+  </div>
+  {% if saved and not salah %}<p class="banner banner-ok" role="status">{{ mode_label }} tersimpan dan dicatat di log petugas.</p>{% endif %}
+  {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+  <div class="pay-deposit-box {% if source_deposit and source_deposit > 0 %}is-cut{% else %}is-empty{% endif %}">
+    <strong>{{ tip('Deposit') }} sudah dipotong</strong>
+    {% if source_deposit and source_deposit > 0 %}
+    <p>Dari file payroll, deposit <strong>− Rp {{ "{:,}".format(source_deposit).replace(",", ".") }}</strong> sudah mengurangi {{ tip('Hasil hitung') }}.</p>
+    {% else %}
+    <p>Tidak ada deposit di file sumber untuk petugas ini.</p>
+    {% endif %}
+    {% if condition.potongan is not none and condition.potongan_reason == 'deposit' %}
+    <p class="muted">Override syarat: Deposit diganti jadi − Rp {{ "{:,}".format(condition.potongan).replace(",", ".") }}.</p>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}" id="payroll-condition-form" class="drawer-form">
+    <input type="hidden" name="panel" value="1">
+    <input type="hidden" name="bagian" value="syarat">
+    <input type="hidden" name="pay_section" value="{{ mode }}">
+
+    {% if mode == 'potongan' %}
+    <p class="muted">Pengurangan tambahan di luar deposit file. Pilih alasan Deposit hanya jika ingin mengganti nominal deposit yang sudah dipotong. Fraud/Lainnya masuk kolom Potongan Manual.</p>
+    <label>Nominal pengurangan
+      <input type="number" name="potongan" min="0" step="1" value="{{ potongan_value }}" placeholder="Kosong = hapus pengurangan ekstra">
+    </label>
+    <label>Alasan pengurangan
+      <select name="potongan_alasan">
+        <option value="">Pilih alasan</option>
+        {% for code, name in potongan_reasons %}
+        <option value="{{ code }}" {% if condition.potongan_reason == code %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% elif mode == 'tambahan' %}
+    <p class="muted">Menambah total gaji dihitung (Banding disetujui, Refund Deposit, atau lainnya). Refund Deposit menambah gaji; deposit file tetap tercatat sebagai potongan kecuali diganti di Pengurangan.</p>
+    <label>Nominal penambahan
+      <input type="number" name="tambahan" min="0" step="1" value="{{ tambahan_value }}" placeholder="Kosong = hapus penambahan">
+    </label>
+    <label>Alasan penambahan
+      <select name="tambahan_alasan">
+        <option value="">Pilih alasan</option>
+        {% for code, name in tambahan_reasons %}
+        <option value="{{ code }}" {% if condition.tambahan_reason == code %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <p class="muted">Catatan syarat payroll. Pengurangan dan penambahan diubah dari tombol terpisah.</p>
+    {% if condition.potongan is not none %}
+    <p class="muted">Pengurangan aktif: {{ condition.potongan_reason }} · Rp {{ "{:,}".format(condition.potongan).replace(",", ".") }}</p>
+    {% endif %}
+    {% if condition.tambahan is not none %}
+    <p class="muted">Penambahan aktif: {{ condition.tambahan_reason }} · Rp {{ "{:,}".format(condition.tambahan).replace(",", ".") }}</p>
+    {% endif %}
+    {% endif %}
+
+    <label>Catatan
+      <input type="text" name="catatan" value="{{ condition.note }}" placeholder="Keterangan untuk log, opsional">
+    </label>
+    <div class="drawer-actions">
+      <button class="action" type="submit">Simpan {{ mode_label|lower }}</button>
+      <a class="text-link" href="{{ url_for('data_profil', officer_id=person.id) }}">Buka profil</a>
+    </div>
+  </form>
+
+  <h3 class="drawer-sub">Log potongan &amp; tambahan</h3>
+  {% if adjustment_log %}
+  <ul class="pay-log">
+    {% for row in adjustment_log %}
+    <li>
+      <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
+      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Belum ada log untuk petugas ini.</p>
+  {% endif %}
+</article>
+<script type="application/json" id="drawer-row">{{ snapshot|tojson }}</script>

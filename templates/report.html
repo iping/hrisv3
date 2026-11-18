@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analisis {{ view.period or view.month or "payroll" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set sid = view.sid %}
+  {% set step = 'cek' %}
+  {% include "_nav.html" %}
+  {% include "_work.html" %}
+  <main class="wrap">
+    <p class="kicker">{% if view.upload %}Diunggah {{ view.upload.when }} · {% endif %}{{ view.period or view.month or "Periode mengikuti file" }}</p>
+    <h1>{{ view.upload.alias if view.upload else view.source_name }}</h1>
+    <p class="muted">Angka di bawah adalah ringkasannya. Tabel lengkapnya dibuka dari tombol ini. Unduh tetap ada: <a class="text-link" href="{{ url_for('download', sid=view.sid) }}">hasil hitung</a> · <a class="text-link" href="{{ url_for('download_transfer', sid=view.sid) }}">file transfer</a>.</p>
+    <div class="page-actions">
+      <a class="action" href="{{ url_for('view_hitung', sid=view.sid) }}">Buka tabel hasil hitung</a>
+      <a class="button-ghost" href="{{ url_for('view_transfer', sid=view.sid) }}">Buka tabel transfer</a>
+      <a class="button-ghost" href="{{ url_for('view_final', sid=view.sid) }}">Buka ringkasan akhir</a>
+    </div>
+    {% for paragraph in view.paragraphs %}
+    <p class="lede">{{ paragraph }}</p>
+    {% endfor %}
+
+    <section class="stats">
+      <article>
+        <p>{{ tip('Gaji HRIS') }}</p>
+        <strong>{{ view.hris | rp }}</strong>
+        <span>{{ view.paid_count }} petugas digaji</span>
+      </article>
+      <article>
+        <p>{{ tip('Hasil hitung') }}</p>
+        <strong>{{ view.hitung | rp }}</strong>
+        <span>Lembur dari durasi, alpa dari pokok/25</span>
+      </article>
+      <article class="{{ 'stat-up' if view.selisih > 1 else 'stat-down' if view.selisih < -1 else 'stat-even' }}">
+        <p>{{ tip('Selisih') }}</p>
+        <strong>{{ view.selisih | rp }}</strong>
+        <span>{% if view.selisih > 1 %}Hitung lebih tinggi{% elif view.selisih < -1 %}Hitung lebih rendah{% else %}Sama dengan HRIS{% endif %}</span>
+      </article>
+    </section>
+
+    <section class="split">
+      <article>
+        <h2>{{ tip('Lembur') }}</h2>
+        <p>Slip {{ view.lembur_hris | rp }}</p>
+        <p>Durasi {{ view.lembur_hitung | rp }}</p>
+      </article>
+      <article>
+        <h2>{{ tip('Denda alpa') }}</h2>
+        <p>Slip {{ view.denda_hris | rp }}</p>
+        <p>Hitung {{ view.denda_hitung | rp }}</p>
+      </article>
+    </section>
+
+    {% if view.decisions %}
+    <h2>Sebelum transfer</h2>
+    <div class="decisions">
+      {% for item in view.decisions %}
+      <article class="decision decision-{{ item.level }}">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.text }}</p>
+        {% if item.rows %}
+        <ul>
+          {% for row in item.rows[:8] %}
+          <li>
+            <span>{{ row.nama }}{% if row.lokasi %} · {{ row.lokasi }}{% endif %}</span>
+            <span>{{ row.amount | rp }}</span>
+            {% if row.note %}<small>{{ row.note }}</small>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% if item.rows|length > 8 %}
+        <p class="more"><a class="text-link" href="{{ url_for('view_hitung', sid=view.sid) }}">{{ item.rows|length - 8 }} baris lainnya ada di tabel hasil hitung.</a></p>
+        {% endif %}
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <h2>Lokasi aktif, resign, dan petugas baru</h2>
+    {% if view.kelola %}
+    <p class="lede">
+      {{ view.kelola.active_count }} dari {{ view.kelola.location_count }} lokasi ikut payroll.
+      Gaji di lokasi aktif {{ view.kelola.active_pay | rp }}.
+      {% if view.kelola.inactive %}Lokasi yang dimatikan {{ view.kelola.inactive_pay | rp }}.{% endif %}
+      {{ view.kelola.resign|length }} petugas resign, {{ view.kelola.baru|length }} petugas baru.
+      <a href="{{ url_for('kelola_petugas') }}">Ubah daftar petugas</a>
+      {% if view.archive and view.archive.id %}
+      Tanggal masuk dan tanggal resign dibaca dari sheet Officer Profile.
+      {{ view.archive.baru }} masuk di periode ini, {{ view.archive.resign }} sudah resign.
+      Banding {{ view.archive.appeals }} pengajuan, {{ view.archive.approved }} disetujui, {{ view.archive.pending }} menunggu.
+      <a href="{{ url_for('arsip_bulan', month_id=view.archive.id) }}">Buka arsip bulan ini</a>.
+      {% endif %}
+    </p>
+    {% if view.kelola.inactive or view.kelola.resign or view.kelola.baru %}
+    <div class="decisions">
+      {% if view.kelola.inactive %}
+      <article class="decision decision-info">
+        <h3>Lokasi tidak ikut payroll</h3>
+        <ul>
+          {% for row in view.kelola.inactive %}
+          <li><span>{{ row.lokasi }}</span><span>{{ row.amount | rp }}</span></li>
+          {% endfor %}
+        </ul>
+      </article>
+      {% endif %}
+      {% if view.kelola.resign %}
+      <article class="decision decision-tinggi">
+        <h3>Sudah resign</h3>
+        <p>Cek prorate dan hari sesudah tanggal resign sebelum ditransfer.</p>
+        <ul>
+          {% for row in view.kelola.resign %}
+          <li>
+            <span>{{ row.nama }} · {{ row.lokasi }}</span>
+            <span>{{ row.paid | rp }}</span>
+            <small>{{ row.tanggal }}{% if row.catatan %} · {{ row.catatan }}{% endif %}{% if not row.aktif_lokasi %} · lokasi tidak aktif{% endif %}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
+      {% endif %}
+      {% if view.kelola.baru %}
+      <article class="decision">
+        <h3>Petugas baru</h3>
+        <p>Cek tanggal masuk dan prorate sebelum ditransfer.</p>
+        <ul>
+          {% for row in view.kelola.baru %}
+          <li>
+            <span>{{ row.nama }} · {{ row.lokasi }}</span>
+            <span>{{ row.paid | rp }}</span>
+            <small>{{ row.tanggal }}{% if row.catatan %} · {{ row.catatan }}{% endif %}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </article>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="lede"><a href="{{ url_for('kelola_petugas') }}">Atur resign dan petugas baru.</a></p>
+    {% endif %}
+
+    <h2>Per lokasi</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Lokasi</th>
+            <th>Petugas</th>
+            <th>Gaji HRIS</th>
+            <th>Hasil hitung</th>
+            <th>Selisih</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in view.locations %}
+          {% if row.selisih != 0 %}
+          <tr>
+            <td>{{ row.lokasi }}</td>
+            <td class="num">{{ row.n }}</td>
+            <td class="num">{{ row.hris | rp }}</td>
+            <td class="num">{{ row.hitung | rp }}</td>
+            <td class="num {{ 'neg' if row.selisih < 0 else 'pos' }}">{{ row.selisih | rp }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Petugas yang angkanya beda</h2>
+    {% if view.people %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Lokasi</th>
+            <th>Nama</th>
+            <th>Gaji HRIS</th>
+            <th>Hasil hitung</th>
+            <th>Selisih</th>
+            <th>Kenapa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in view.people %}
+          <tr>
+            <td>{{ row.lokasi }}</td>
+            <td>{{ row.nama }}</td>
+            <td class="num">{{ row.hris | rp }}</td>
+            <td class="num">{{ row.hitung | rp }}</td>
+            <td class="num {{ 'neg' if row.selisih < 0 else 'pos' }}">{{ row.selisih | rp }}</td>
+            <td>{{ row.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="lede">Tidak ada petugas yang selisihnya lebih dari Rp 0.</p>
+    {% endif %}
+
+    <h2>Terhadap payroll final bulan lalu</h2>
+    {% if view.prior_error %}
+    <p class="banner" role="alert">{{ view.prior_error }}</p>
+    {% elif view.prior %}
+    <p class="lede">
+      Dibanding {{ view.prior_name or "file bulan lalu" }}:
+      gaji bulan lalu {{ view.prior.prior_total | rp }},
+      gaji HRIS bulan ini {{ view.prior.current_total | rp }},
+      selisih {{ view.prior.selisih | rp }}.
+      {{ view.prior.same }} petugas sama,
+      {{ view.prior.naik }} naik,
+      {{ view.prior.turun }} turun,
+      {{ view.prior.baru }} baru,
+      {{ view.prior.lepas }} tidak ada bulan ini.
+    </p>
+    {% if view.prior.rows %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Lokasi</th>
+            <th>Nama</th>
+            <th>Bulan lalu</th>
+            <th>Bulan ini</th>
+            <th>Selisih</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in view.prior.rows[:40] %}
+          <tr>
+            <td>{{ row.status }}</td>
+            <td>{{ row.lokasi }}</td>
+            <td>{{ row.nama }}</td>
+            <td class="num">{{ row.lalu | rp }}</td>
+            <td class="num">{{ row.ini | rp }}</td>
+            <td class="num {{ 'neg' if row.selisih < 0 else 'pos' }}">{{ row.selisih | rp }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if view.prior.rows|length > 40 %}
+    <p class="more">Menampilkan 40 perubahan terbesar dari {{ view.prior.rows|length }}.</p>
+    {% endif %}
+    {% endif %}
+    {% else %}
+    <p class="lede">Belum ada file payroll final bulan lalu. Upload file itu di halaman awal kalau angka bulan lalu sudah disetujui. Perbandingan orang per orang akan muncul di bagian ini.</p>
+    {% endif %}
+
+    <h2>Cara angka ini disusun</h2>
+    <ul class="rules">
+      {% for rule in view.rules %}
+      <li>{{ rule }}</li>
+      {% endfor %}
+    </ul>
+  </main>
+</body>
+</html>

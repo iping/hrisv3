@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arsip {{ page.month.period_start }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body class="grid-page">
+  {% set nav = 'arsip' %}
+  {% set wide = true %}
+  {% include "_nav.html" %}
+  <main class="wrap wide">
+    <p class="kicker"><a class="back" href="{{ url_for('arsip') }}">Semua bulan</a></p>
+    <h1>{{ page.month.period_start }} s/d {{ page.month.period_end }}</h1>
+    <p class="lede">
+      {{ page.month.source_name }}.
+      {{ page.month.baru_count }} petugas baru dari tanggal masuk,
+      {{ page.month.resign_count }} resign dari tanggal resign.
+      {{ tip('Banding') }} {{ page.month.appeal_count }}, {{ page.month.approved_count }} disetujui, {{ page.month.pending_count }} menunggu.
+      Absensi di slip sudah memakai hasil banding yang disetujui.
+    </p>
+    <section class="stats">
+      <article>
+        <p>{{ tip('Gaji HRIS') }}</p>
+        <strong>{{ page.month.hris_total | rp }}</strong>
+        <span>{{ page.month.officer_count }} petugas</span>
+      </article>
+      <article>
+        <p>{{ tip('Hasil hitung') }}</p>
+        <strong>{{ page.month.hitung_total | rp }}</strong>
+        <span>Disimpan {{ page.month.saved_at }}</span>
+      </article>
+      <article>
+        <p>Baru / resign</p>
+        <strong>{{ page.month.baru_count }} / {{ page.month.resign_count }}</strong>
+        <span>Dari Officer Profile</span>
+      </article>
+    </section>
+
+    <div class="tools">
+      <input id="q" type="search" placeholder="Cari nama, lokasi, atau username" aria-label="Cari petugas">
+      <div class="chips" id="chips">
+        <button type="button" class="chip is-on" data-filter="all">Semua</button>
+        <button type="button" class="chip" data-filter="baru">Baru</button>
+        <button type="button" class="chip" data-filter="resign">Resign</button>
+        <button type="button" class="chip" data-filter="aktif">Aktif</button>
+      </div>
+      <p class="muted" id="shown"></p>
+    </div>
+    <div class="sheet-scroll">
+      <table class="grid" id="lines">
+        <thead>
+          <tr>
+            <th class="sticky">Lokasi</th>
+            <th>Nama</th>
+            <th>Username</th>
+            <th>Status</th>
+            <th>Masuk</th>
+            <th>{{ tip('Resign') }}</th>
+            <th>Aktif</th>
+            <th>{{ tip('Gaji HRIS') }}</th>
+            <th>{{ tip('Hasil hitung') }}</th>
+            <th>{{ tip('Selisih') }}</th>
+            <th>{{ tip('Alpa') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page.lines %}
+          <tr data-state="{{ row.status }}" data-text="{{ (row.lokasi ~ ' ' ~ row.nama ~ ' ' ~ row.username)|lower }}">
+            <td class="sticky">{{ row.lokasi }}</td>
+            <td>{{ row.nama }}</td>
+            <td>{{ row.username }}</td>
+            <td>
+              {% if row.status == 'baru' %}<span class="pill pill-baru">Baru</span>
+              {% elif row.status == 'resign' %}<span class="pill pill-resign">Resign</span>
+              {% else %}<span class="pill pill-on">Aktif</span>{% endif %}
+            </td>
+            <td>{{ row.joined_date }}</td>
+            <td>{{ row.resigned_date }}</td>
+            <td>{{ row.activated }}</td>
+            <td class="num">{{ row.paid | rp }}</td>
+            <td class="num">{{ row.hitung | rp }}</td>
+            <td class="num {{ 'pos' if row.selisih > 1 else 'neg' if row.selisih < -1 else '' }}">{{ row.selisih | rp }}</td>
+            <td class="num">{{ row.alpha }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="lede" id="empty" hidden>Tidak ada petugas yang cocok.</p>
+
+    <h2>Pengajuan banding</h2>
+    {% if page.appeals %}
+    <div class="sheet-scroll">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Lokasi</th>
+            <th>Nama</th>
+            <th>Tanggal</th>
+            <th>Alasan</th>
+            <th>Sebelum</th>
+            <th>Sesudah</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page.appeals %}
+          <tr>
+            <td>{{ row.lokasi }}</td>
+            <td>{{ row.nama }}</td>
+            <td>{{ row.attendance_date }}</td>
+            <td>{{ row.reason }}</td>
+            <td>{{ row.before_status }}</td>
+            <td>{{ row.after_status }}</td>
+            <td>
+              {% if 'APPROVED' in row.status %}<span class="pill pill-on">Disetujui</span>
+              {% elif 'PENDING' in row.status %}<span class="pill pill-baru">Menunggu</span>
+              {% elif 'REJECTED' in row.status %}<span class="pill pill-resign">Ditolak</span>
+              {% else %}{{ row.status }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="lede">Tidak ada pengajuan banding di bulan ini.</p>
+    {% endif %}
+  </main>
+  <script>
+    const input = document.getElementById("q");
+    const shown = document.getElementById("shown");
+    const chips = document.getElementById("chips");
+    const empty = document.getElementById("empty");
+    let mode = "all";
+    function applyFilter() {
+      const text = input.value.toLowerCase().trim();
+      let visible = 0;
+      const rows = document.querySelectorAll("#lines tbody tr");
+      rows.forEach(function (row) {
+        const matchesText = !text || (row.dataset.text || "").indexOf(text) !== -1;
+        const matchesMode = mode === "all" || row.dataset.state === mode;
+        const show = matchesText && matchesMode;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      shown.textContent = visible + " petugas";
+      empty.hidden = visible !== 0;
+    }
+    input.addEventListener("input", applyFilter);
+    chips.addEventListener("click", function (event) {
+      const button = event.target.closest("button");
+      if (!button) return;
+      mode = button.dataset.filter;
+      chips.querySelectorAll("button").forEach(function (item) {
+        item.classList.toggle("is-on", item === button);
+      });
+      applyFilter();
+    });
+    applyFilter();
+  </script>
+</body>
+</html>

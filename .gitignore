@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+output/sessions/
+output/profiles.json
+output/roster.json
+output/payroll.db
+output/*.xlsx

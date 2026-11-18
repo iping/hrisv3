@@ -1,0 +1,390 @@
+<nav class="section-switch" aria-label="Profil petugas">
+  <a href="{{ url_for('data_profil', officer_id=person.id, tab='kerja', panel='1' if panel else '') }}" {% if tab == 'kerja' %}aria-current="page"{% endif %}>Data kerja</a>
+  <a href="{{ url_for('data_profil', officer_id=person.id, tab='gaji', panel='1' if panel else '') }}" {% if tab == 'gaji' %}aria-current="page"{% endif %}>Gaji</a>
+  <a href="{{ url_for('data_profil', officer_id=person.id, tab='rekening', panel='1' if panel else '') }}" {% if tab == 'rekening' %}aria-current="page"{% endif %}>Rekening</a>
+  <a href="{{ url_for('data_profil', officer_id=person.id, tab='riwayat', panel='1' if panel else '') }}" {% if tab == 'riwayat' %}aria-current="page"{% endif %}>Riwayat</a>
+</nav>
+{% if saved %}<p class="banner banner-ok" role="status">Profil tersimpan.</p>{% endif %}
+{% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+{% if mutasi.dari and mutasi.ke %}
+{% if panel %}
+<p class="banner banner-ok" role="status">Mutasi dari <strong>{{ mutasi.dari }}</strong> ke <strong>{{ mutasi.ke }}</strong>. {% if mutasi.salin == '1' %}Profil gaji disalin dan sekarang aktif untuk payroll.{% else %}Profil gaji lokasi baru sudah ada dan sekarang aktif lagi.{% endif %}</p>
+{% else %}
+<dialog class="pay-dialog" id="mutasi-dialog">
+  <h2>Profil gaji untuk payroll</h2>
+  <p>Mutasi dari <strong>{{ mutasi.dari }}</strong> ke <strong>{{ mutasi.ke }}</strong>.</p>
+  {% if mutasi.salin %}
+  <p>Profil gaji <strong>{{ mutasi.ke }}</strong> disalin dari {{ mutasi.dari }} dan sekarang aktif untuk payroll akhir. Profil {{ mutasi.dari }} tetap tersimpan.</p>
+  {% else %}
+  <p>Profil gaji <strong>{{ mutasi.ke }}</strong> sudah ada dan sekarang aktif lagi untuk payroll akhir. Angkanya tidak disalin ulang.</p>
+  {% endif %}
+  <p class="muted">Ubah Fee, Insentif, atau BPJS di tab Gaji hanya mengubah profil yang aktif.</p>
+  <div class="dialog-actions">
+    <a class="action" href="{{ url_for('data_profil', officer_id=person.id, tab='gaji') }}">Lihat profil gaji</a>
+    <form method="dialog"><button class="ghost" type="submit">Tutup</button></form>
+  </div>
+</dialog>
+<script>document.getElementById("mutasi-dialog").showModal();</script>
+{% endif %}
+{% endif %}
+{% if tab == 'kerja' %}
+<section class="panel">
+  <h2>Data kerja</h2>
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}">
+    {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+    <label>Nama<input type="text" name="nama" required value="{{ person.nama }}"></label>
+    <label>ID<input type="text" value="{{ person.id }}" readonly></label>
+    <label>Username<input type="text" value="{{ person.username }}" readonly></label>
+    <label>Tanggal masuk<input type="date" name="masuk" required value="{{ person.joined }}"></label>
+    <label>Posisi
+      <select name="posisi" required>
+        <option value="">Pilih posisi</option>
+        {% for code, name in person.positions %}
+        <option value="{{ code }}" {% if person.posisi == code %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if person.account_code == 'onboard' %}
+    <p class="muted">Onboard. Register awal, belum disetujui, dan belum masuk absensi.</p>
+    <input type="hidden" name="status" value="onboard">
+    {% else %}
+    <label>Status akun
+      <select name="status" required>
+        {% for code, name in person.account_choices %}
+        <option value="{{ code }}" {% if person.status_choice == code %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span id="status-date-name">{{ when.label }}</span>
+      <input type="date" name="tanggal" required value="{{ when.value }}">
+    </label>
+    <p class="muted" id="status-help">{{ when.help }}</p>
+    <script type="application/json" id="work-status-dates">{{ status_dates|tojson }}</script>
+    {% endif %}
+    <label>Lokasi utama
+      <select name="lokasi" required>
+        {% for row in locations %}
+        <option value="{{ row.id }}" {% if person.location_id == row.id %}selected{% endif %}>{{ row.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Lokasi kedua
+      <select name="lokasi_kedua">
+        <option value="">Tidak ada</option>
+        {% for row in locations %}
+        <option value="{{ row.id }}" {% if person.secondary_location_id == row.id %}selected{% endif %}>{{ row.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <p class="muted">Lokasi utama dipakai untuk absensi dan payroll. Lokasi kedua disimpan di profil bila petugas ini juga tercatat di lokasi lain.</p>
+    <p class="muted">Gaji pokok memakai Fee pada form Selama OJT. BPJS Kesehatan {{ person.bpjs_kesehatan|rp }}. BPJS Ketenagakerjaan {{ person.bpjs_ketenagakerjaan|rp }}. Gaji pokok {{ person.basic_salary|rp }}.</p>
+    <label>Mulai di lokasi ini<input type="date" name="pindah" value="{{ person.placement_start or person.joined }}"></label>
+    <label class="flag-checks"><span><input type="checkbox" name="testing" value="1" {% if person.testing %}checked{% endif %}> Akun testing</span></label>
+    <label>Jenis kelamin
+      <select name="gender" required>
+        <option value="">Pilih jenis kelamin</option>
+        {% for code, label in person.genders %}
+        <option value="{{ code }}" {% if person.gender == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Status nikah
+      <select name="marital" required>
+        <option value="">Pilih status nikah</option>
+        {% for code, label in person.maritals %}
+        <option value="{{ code }}" {% if person.marital_status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Minimum kehadiran, jam<input type="number" name="min_jam" min="0" step="0.5" placeholder="Kosong = ikut lokasi" value="{{ person.min_jam }}"></label>
+    <label>Maksimum kehadiran, jam<input type="number" name="max_jam" min="0" step="0.5" placeholder="9" value="{{ person.max_jam }}"></label>
+    <p class="muted">{% if person.min_follows %}Ikut lokasi{% if person.location_min_jam %} · {{ person.location_min_jam }} jam{% else %} · lokasi belum mengatur minimum{% endif %}.{% else %}Tidak ikut lokasi · {{ person.min_jam }} jam.{% endif %} Isi angka bila minimum petugas ini berbeda. Kehadiran di atas maksimum dihitung lembur. Di bawah minimum ditandai kurang.</p>
+    <label>Minimum hari hadir per bulan<input type="number" name="min_hadir" min="0" max="31" placeholder="Kosong = ikut lokasi" value="{{ person.min_work_days if person.min_work_days is not none else '' }}"></label>
+    <label>Minimum hari off per bulan<input type="number" name="min_off" min="0" max="31" placeholder="Kosong = ikut lokasi" value="{{ person.min_off_days if person.min_off_days is not none else '' }}"></label>
+    <p class="muted">{% if person.work_follows %}Hadir ikut lokasi{% if person.location_work_days is not none %} · {{ person.location_work_days }} hari{% else %} · lokasi belum mengatur{% endif %}.{% else %}Hadir tidak ikut lokasi · {{ person.min_work_days }} hari.{% endif %} {% if person.off_follows %}Off ikut lokasi{% if person.location_off_days is not none %} · {{ person.location_off_days }} hari{% else %} · lokasi belum mengatur{% endif %}.{% else %}Off tidak ikut lokasi · {{ person.min_off_days }} hari.{% endif %}</p>
+    {% if person.employment_status == 'ojt' %}
+    <h3>Masa OJT</h3>
+    <label id="ojt-start-field" {% if person.status_choice == 'ojt' %}hidden{% endif %}>Mulai OJT<input type="date" name="ojt_mulai" value="{{ person.ojt_mulai or person.joined }}"></label>
+    <label>Lama OJT
+      <select name="ojt_bulan">
+        {% for n in range(3, 13) %}
+        <option value="{{ n }}" {% if person.ojt_months == n %}selected{% endif %}>{{ n }} bulan</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if person.ojt_selesai_label %}
+    <p class="muted">Masa OJT selesai {{ person.ojt_selesai_label }}.</p>
+    {% endif %}
+    {% if person.ojt_decision == 'gagal' %}
+    <p class="banner">Belum lulus. Gaji tetap memakai struktur OJT.</p>
+    {% endif %}
+    {% endif %}
+    <p class="muted">Ganti lokasi menutup penempatan lama dan membuka penempatan baru. Profil gaji lokasi sekarang disalin ke lokasi baru, dan yang baru itu yang dipakai payroll. Status Resign atau Blacklist menutup penempatan pada tanggal status itu.</p>
+    <button class="action" type="submit">Simpan profil</button>
+  </form>
+  {% if person.employment_status == 'ojt' and person.ojt_menunggu %}
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}">
+    {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+    <input type="hidden" name="bagian" value="ojt">
+    <p>Masa OJT sudah selesai. HR atau Operasional memutuskan petugas ini lulus atau tidak. Lulus memakai struktur gaji setelah lulus.</p>
+    <button class="action" type="submit" name="keputusan" value="lulus">Lulus OJT</button>
+    <button class="ghost" type="submit" name="keputusan" value="gagal">Tidak lulus</button>
+  </form>
+  {% elif person.employment_status == 'ojt' and person.ojt_selesai_label and not person.ojt_decision %}
+  <p class="muted">Keputusan lulus dibuka setelah {{ person.ojt_selesai_label }}.</p>
+  {% elif person.ojt_decision == 'lulus' %}
+  <p class="banner banner-ok">Lulus OJT. Gaji memakai struktur setelah lulus.</p>
+  {% endif %}
+</section>
+{% elif tab == 'gaji' %}
+<p class="lede">Satu petugas bisa punya profil gaji untuk tiap lokasi. Yang aktif dipakai untuk payroll akhir.{% if person.pay_location %} Sekarang aktif: {{ person.pay_location }}.{% endif %} Saat status OJT, angka yang dipakai adalah Selama OJT. Setelah lulus, yang dipakai adalah Setelah OJT.</p>
+<section class="panel">
+  <h2>Variabel payroll</h2>
+  <p class="muted">Ubah Deposit dan Tunjangan Jabatan di sini. Setiap simpan masuk Riwayat petugas{% if adjustment_log %} dan log potongan/tambahan{% endif %}.</p>
+  <div class="pay-edit-grid">
+    <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}" class="pay-edit-card {% if payroll_info.has_deposit %}is-cut{% endif %}">
+      {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+      <input type="hidden" name="bagian" value="deposit">
+      <h3>Deposit</h3>
+      <p class="pay-var-value">{% if payroll_info.effective_deposit %}− {{ payroll_info.effective_deposit|rp }}{% else %}{{ 0|rp }}{% endif %}</p>
+      {% if payroll_info.source_deposit and payroll_info.source_deposit != payroll_info.effective_deposit %}
+      <p class="muted">File sumber: {{ payroll_info.source_deposit|rp }}</p>
+      {% elif payroll_info.source_deposit %}
+      <p class="muted">Saat ini mengikuti file payroll.</p>
+      {% else %}
+      <p class="muted">Belum ada di file. Isi untuk memotong di payroll.</p>
+      {% endif %}
+      <label>Nominal deposit
+        <input type="text" name="deposit" inputmode="numeric" value="{{ payroll_info.effective_deposit if payroll_info.deposit_overridden else (payroll_info.effective_deposit or '') }}" placeholder="0">
+      </label>
+      <p class="muted">{% if payroll_info.deposit_overridden %}Override aktif. Kosongkan lalu simpan untuk kembali ke nilai file.{% else %}Simpan menulis override deposit dan mencatat log.{% endif %}</p>
+      <button class="action" type="submit">Simpan deposit</button>
+    </form>
+    <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}" class="pay-edit-card">
+      {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+      <input type="hidden" name="bagian" value="tunjangan">
+      <input type="hidden" name="struktur" value="{{ person.struktur_aktif or 'lanjut' }}">
+      <h3>Tunjangan Jabatan</h3>
+      <p class="pay-var-value">{{ (person.tunjangan_jabatan or 0)|rp }}</p>
+      <p class="muted">Struktur aktif: {{ 'Selama OJT' if person.struktur_aktif == 'ojt' else 'Setelah OJT' }}. Masuk ke gaji dihitung.</p>
+      <label>Nominal tunjangan jabatan
+        <input type="text" name="tunjangan_jabatan" inputmode="numeric" value="{{ person.tunjangan_jabatan or '' }}" placeholder="0">
+      </label>
+      <p class="muted">Simpan mengubah profil gaji aktif dan mencatat log di Riwayat.</p>
+      <button class="action" type="submit">Simpan tunjangan</button>
+    </form>
+  </div>
+  {% if pay_var_log %}
+  <h3 class="drawer-sub">Log Deposit &amp; Tunjangan Jabatan</h3>
+  <ul class="pay-log">
+    {% for row in pay_var_log[:10] %}
+    <li>
+      <strong>{{ row.field_label }}</strong> · {{ row.change }}
+      <span class="muted">{{ row.when }} · {{ row.bagian_label }} · {{ row.actor_label }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if payroll_info.lines %}
+  <h3 class="drawer-sub">Rincian penyesuaian aktif</h3>
+  <ul class="pay-detail-list">
+    {% for line in payroll_info.lines %}
+    <li class="{{ line.cls }}">
+      <div class="pay-detail-head">
+        <span class="pay-detail-kind">{{ line.kind_label }}</span>
+        <strong>{{ line.title }}</strong>
+        <span class="pay-detail-amount">{{ line.amount_label }}</span>
+      </div>
+      <p class="muted">{{ line.source }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if payroll_info.note %}
+  <p class="muted">Catatan syarat: {{ payroll_info.note }}</p>
+  {% endif %}
+  {% if adjustment_log %}
+  <h3 class="drawer-sub">Log potongan &amp; tambahan</h3>
+  <ul class="pay-log">
+    {% for row in adjustment_log[:12] %}
+    <li>
+      <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
+      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Belum ada log pengurangan/penambahan payroll.</p>
+  {% endif %}
+</section>
+{% if person.pay_profiles %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Lokasi</th>
+        <th class="num">Fee OJT</th>
+        <th class="num">Jabatan OJT</th>
+        <th class="num">Fee lanjut</th>
+        <th class="num">Jabatan lanjut</th>
+        <th>Payroll</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for profile in person.pay_profiles %}
+      <tr>
+        <td>{{ profile.lokasi }}</td>
+        <td class="num">{{ profile.gaji_ojt|rp }}</td>
+        <td class="num">{{ (profile.jabatan_ojt or 0)|rp }}</td>
+        <td class="num">{{ profile.gaji_lanjut|rp }}</td>
+        <td class="num">{{ (profile.jabatan_lanjut or 0)|rp }}</td>
+        <td>{% if profile.active %}<span class="pill pill-on">Aktif untuk payroll akhir</span>{% else %}Tersimpan{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted">Form di bawah mengubah profil yang aktif saja. Profil lokasi sebelumnya tidak ikut berubah.</p>
+{% endif %}
+{% for struktur in person.structures %}
+<section class="panel">
+  <h2>{{ struktur.title }}{% if struktur.active %} <span class="pill pill-on">Dipakai sekarang</span>{% endif %}</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Komponen</th><th>Keterangan</th><th class="num">Nilai</th></tr></thead>
+      <tbody>
+        {% for line in struktur.pay.lines %}
+        <tr>
+          <td>{{ line.nama }}</td>
+          <td>{{ line.catatan or line.kelompok }}</td>
+          <td class="num">{{ line.hasil|rp }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Total Take Home Fee {{ struktur.pay.take_home|rp }}</strong></p>
+  <p class="muted">Total Overhead {{ struktur.pay.overhead|rp }}. Total fee Gross {{ struktur.pay.gross|rp }}.</p>
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}">
+    {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+    <input type="hidden" name="bagian" value="gaji">
+    <input type="hidden" name="struktur" value="{{ struktur.code }}">
+    <h3>Komponen Fee &amp; Insentif</h3>
+    <label>Fee{% if struktur.code == 'ojt' %} · gaji pokok{% endif %}<input type="text" name="gaji" inputmode="numeric" value="{{ struktur.gaji or '' }}" placeholder="0"></label>
+    <label>Tunjangan Jabatan<input type="text" name="tunjangan_jabatan" inputmode="numeric" value="{{ struktur.jabatan or '' }}" placeholder="0"></label>
+    <p class="muted">Tunjangan Jabatan masuk ke gaji dihitung di payroll (kolom Tunjangan Jabatan / penambah).</p>
+    {% if struktur.code == 'ojt' %}<p class="muted">Fee pada form ini disimpan sebagai gaji pokok. BPJS Kesehatan dan BPJS Ketenagakerjaan di form ini ikut tersimpan di profil.</p>{% endif %}
+    <label>Insentif<input type="text" name="insentif" inputmode="numeric" value="{{ struktur.inputs.insentif }}" placeholder="0"></label>
+    <h3>BPJS &amp; THR</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Komponen</th><th>Nilai</th><th>Perlakuan</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>BPJS Ketenagakerjaan</td>
+            <td><input type="text" name="bpjs_tk" inputmode="numeric" value="{{ struktur.inputs.bpjs_tk }}" placeholder="0"></td>
+            <td>
+              <select name="bpjs_tk_mode">
+                {% for code, name in [('deduction', 'Deduction'), ('include', 'Include'), ('none', 'None')] %}
+                <option value="{{ code }}" {% if struktur.modes.bpjs_tk == code %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>BPJS Kesehatan</td>
+            <td><input type="text" name="bpjs_kes" inputmode="numeric" value="{{ struktur.inputs.bpjs_kes }}" placeholder="0"></td>
+            <td>
+              <select name="bpjs_kes_mode">
+                {% for code, name in [('deduction', 'Deduction'), ('include', 'Include'), ('none', 'None')] %}
+                <option value="{{ code }}" {% if struktur.modes.bpjs_kes == code %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Deduction dipotong dari Total Take Home Fee. Include masuk ke Total Take Home Fee. None tidak dipakai.</p>
+    <label>THR / Tunjangan Hari Raya<input type="text" name="thr" inputmode="numeric" value="{{ struktur.inputs.thr }}" placeholder="0"></label>
+    <p class="muted">THR (Prorata) 1x Fee. Tidak masuk Total Take Home Fee.</p>
+    <button class="action" type="submit">Simpan {{ struktur.title }}</button>
+  </form>
+</section>
+{% endfor %}
+{% elif tab == 'rekening' %}
+<section class="panel">
+  <h2>Rekening</h2>
+  {% if not person.punya_rekening %}
+  <p class="banner" role="status">Belum ada nomor rekening. Karyawan baru boleh dikosongkan dulu. Transfer menunggu sampai nomor ini diisi, dan sampai jelas rekening itu milik siapa.</p>
+  {% elif person.beda_nama %}
+  <p class="banner" role="status">Rekening ini atas nama {{ person.pemilik_tampil }}, bukan nama karyawan.</p>
+  {% else %}
+  <p class="banner banner-ok" role="status">Rekening atas nama {{ person.pemilik_tampil }}, sama dengan nama karyawan.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}">
+    {% if panel %}<input type="hidden" name="panel" value="1">{% endif %}
+    <input type="hidden" name="bagian" value="rekening">
+    <label>Bank
+      <select name="bank">
+        <option value="">Belum dipilih</option>
+        {% for bank in ['BCA', 'Mandiri', 'BRI', 'BNI', 'BSI', 'CIMB Niaga', 'Permata', 'Danamon'] %}
+        <option value="{{ bank }}" {% if person.bank == bank %}selected{% endif %}>{{ bank }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Nomor rekening<input type="text" name="rekening" inputmode="numeric" value="{{ person.rekening or '' }}" placeholder="Boleh kosong"></label>
+    <fieldset class="flag-checks">
+      <legend>Pemilik rekening</legend>
+      <label><input type="radio" name="pemilik" value="sendiri" {% if person.pemilik_sendiri %}checked{% endif %}> Sama dengan nama karyawan, {{ person.nama }}</label>
+      <label><input type="radio" name="pemilik" value="orang" {% if not person.pemilik_sendiri %}checked{% endif %}> Orang lain yang ditunjuk</label>
+    </fieldset>
+    <label>Nama pemilik, kalau orang lain<input type="text" name="pemilik_nama" value="{{ person.pemilik_rekening if not person.pemilik_sendiri else '' }}" placeholder="Nama di buku rekening"></label>
+    <button class="action" type="submit">Simpan rekening</button>
+  </form>
+</section>
+{% elif tab == 'riwayat' %}
+<p class="lede">Setiap simpanan Data kerja, Gaji, Rekening, dan Payroll tercatat di sini, termasuk siapa yang menyimpan. Perubahan status disimpan sebagai langkah sendiri.</p>
+{% if payroll_info %}
+<section class="panel">
+  <h2>Deposit payroll</h2>
+  <div class="pay-deposit-box {% if payroll_info.has_deposit %}is-cut{% else %}is-empty{% endif %}">
+    <strong>Deposit sudah dipotong</strong>
+    {% if payroll_info.has_deposit %}
+    <p>Deposit <strong>− Rp {{ "{:,}".format(payroll_info.effective_deposit).replace(",", ".") }}</strong> sudah mengurangi gaji dihitung.</p>
+    {% else %}
+    <p>Tidak ada deposit yang dipotong di payroll terakhir.</p>
+    {% endif %}
+  </div>
+  {% if adjustment_log %}
+  <h3 class="drawer-sub">Log potongan &amp; tambahan</h3>
+  <ul class="pay-log">
+    {% for row in adjustment_log[:12] %}
+    <li>
+      <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
+      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Waktu</th><th>Bagian</th><th>Yang berubah</th><th>Dari → ke</th><th>Oleh</th></tr></thead>
+    <tbody>
+      {% for row in log %}
+      <tr>
+        <td>{{ row.when }}</td>
+        <td>{{ row.bagian_label }}</td>
+        <td>{{ row.field_label }}</td>
+        <td>{{ row.change }}</td>
+        <td>{{ row.actor_label }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Belum ada perubahan.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

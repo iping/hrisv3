@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pengguna aplikasi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=47">
+</head>
+<body>
+  {% set nav = 'pengaturan' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <div class="page-head">
+      <div>
+        <p class="kicker">Pengaturan</p>
+        <h1>Pengguna aplikasi</h1>
+        <p class="lede">Akun untuk masuk ke aplikasi. Terpisah dari daftar petugas/officer.</p>
+      </div>
+    </div>
+
+    {% if saved %}<p class="banner banner-ok" role="status">Tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    <section class="panel">
+      {% if editing %}
+      <h2>Ubah pengguna</h2>
+      <p class="lede">{{ editing.username }} · kosongkan password jika tidak diganti.</p>
+      <form method="post" action="{{ url_for('save_user') }}">
+        <input type="hidden" name="aksi" value="ubah">
+        <input type="hidden" name="id" value="{{ editing.id }}">
+        <label>Nama
+          <input type="text" name="nama" value="{{ editing.nama }}" required>
+        </label>
+        <label>Peran
+          <select name="role" required>
+            {% for value, label in roles %}
+            <option value="{{ value }}" {% if editing.role == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Status
+          <select name="active">
+            <option value="1" {% if editing.active %}selected{% endif %}>Aktif</option>
+            <option value="0" {% if not editing.active %}selected{% endif %}>Nonaktif</option>
+          </select>
+        </label>
+        <label>Password baru
+          <input type="password" name="password" autocomplete="new-password" placeholder="Biarkan kosong jika tidak diganti">
+        </label>
+        <div class="hero-actions">
+          <button class="action" type="submit">Simpan</button>
+          <a class="button-ghost" href="{{ url_for('users') }}">Batal</a>
+        </div>
+      </form>
+      {% else %}
+      <h2>Pengguna baru</h2>
+      <p class="lede">Admin bisa mengelola semua akun. Staff hanya bisa masuk dan memakai menu biasa.</p>
+      <form method="post" action="{{ url_for('save_user') }}">
+        <input type="hidden" name="aksi" value="buat">
+        <label>Nama
+          <input type="text" name="nama" required>
+        </label>
+        <label>Username
+          <input type="text" name="username" required minlength="3" autocomplete="off">
+        </label>
+        <label>Password
+          <input type="password" name="password" required minlength="6" autocomplete="new-password">
+        </label>
+        <label>Peran
+          <select name="role">
+            {% for value, label in roles %}
+            <option value="{{ value }}" {% if value == 'staff' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="action" type="submit">Buat pengguna</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <h2>Daftar akun</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>Username</th>
+              <th>Peran</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in users %}
+            <tr>
+              <td><strong>{{ row.nama }}</strong></td>
+              <td>{{ row.username }}</td>
+              <td>{{ row.role_label }}</td>
+              <td>
+                {% if row.active %}
+                <span class="pill pill-on">Aktif</span>
+                {% else %}
+                <span class="pill pill-off">Nonaktif</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="hero-actions">
+                  <a class="button-ghost" href="{{ url_for('users', edit=row.id) }}">Ubah</a>
+                  {% if row.id != current_user.id %}
+                  <form method="post" action="{{ url_for('save_user') }}" onsubmit="return confirm('Hapus pengguna {{ row.username }}?');">
+                    <input type="hidden" name="aksi" value="hapus">
+                    <input type="hidden" name="id" value="{{ row.id }}">
+                    <button class="button" type="submit">Hapus</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">Belum ada pengguna.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

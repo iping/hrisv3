@@ -1,0 +1,57 @@
+<article class="drawer-sheet" data-officer="{{ person.id }}" data-pay-mode="rincian">
+  <h1>{{ person.nama }}</h1>
+  <div class="drawer-person">
+    <strong>{{ person.nama }}</strong>
+    <span>{{ person.username }}{% if person.lokasi %} · {{ person.lokasi }}{% endif %}</span>
+  </div>
+
+  <div class="pay-deposit-box {% if payroll_info.has_deposit %}is-cut{% else %}is-empty{% endif %}">
+    <strong>Ringkasan</strong>
+    {% if payroll_info.lines %}
+    <p>Angka di bawah menjelaskan asal {{ tip('Deposit') }}, pengurangan, dan penambahan pada {{ tip('Hasil hitung') }}.</p>
+    {% else %}
+    <p>Belum ada deposit, pengurangan, atau penambahan tersimpan untuk petugas ini.</p>
+    {% endif %}
+  </div>
+
+  {% if payroll_info.lines %}
+  <ul class="pay-detail-list">
+    {% for line in payroll_info.lines %}
+    <li class="{{ line.cls }}">
+      <div class="pay-detail-head">
+        <span class="pay-detail-kind">{{ line.kind_label }}</span>
+        <strong>{{ line.title }}</strong>
+        <span class="pay-detail-amount">{{ line.amount_label }}</span>
+      </div>
+      <p class="muted">{{ line.source }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if payroll_info.note %}
+  <p class="muted"><strong>Catatan syarat:</strong> {{ payroll_info.note }}</p>
+  {% endif %}
+
+  <h3 class="drawer-sub">Log perubahan</h3>
+  {% if payroll_info.log %}
+  <ul class="pay-log">
+    {% for row in payroll_info.log %}
+    <li>
+      <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
+      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Belum ada log untuk petugas ini.</p>
+  {% endif %}
+
+  <div class="drawer-actions pay-detail-actions">
+    <button type="button" class="row-edit" data-pay="potongan" data-officer="{{ person.id }}" data-deposit="{{ source_deposit }}">Ubah pengurangan</button>
+    <button type="button" class="row-edit" data-pay="tambahan" data-officer="{{ person.id }}" data-deposit="{{ source_deposit }}">Ubah penambahan</button>
+    <button type="button" class="row-edit" data-pay="catatan" data-officer="{{ person.id }}" data-deposit="{{ source_deposit }}">Ubah syarat</button>
+    <a class="text-link" href="{{ url_for('data_profil', officer_id=person.id, tab='gaji') }}">Buka profil · Gaji</a>
+  </div>
+</article>
+<script type="application/json" id="drawer-row">{{ snapshot|tojson }}</script>

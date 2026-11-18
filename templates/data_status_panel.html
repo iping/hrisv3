@@ -1,0 +1,33 @@
+<article class="drawer-sheet" data-officer="{{ person.id }}" {% if saved and not salah %}data-saved="1"{% endif %}>
+  <h1>{{ person.nama }}</h1>
+  <div class="drawer-person">
+    <strong>{{ person.nama }}</strong>
+    <span>{{ person.username }}{% if person.lokasi %} · {{ person.lokasi }}{% endif %} · {{ person.status_label }}{% if person.new_joiner %} · {{ tip('New Joiner') }}{% endif %}</span>
+  </div>
+  {% if saved and not salah %}<p class="banner banner-ok" role="status">Status tersimpan.</p>{% endif %}
+  {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+  {% if person.account_code == 'onboard' %}
+  <p class="muted">Onboard. Register awal, belum disetujui, dan belum masuk absensi. Setujui dulu dari daftar petugas.</p>
+  {% else %}
+  <form method="post" action="{{ url_for('data_profil', officer_id=person.id) }}" class="drawer-form">
+    <input type="hidden" name="panel" value="1">
+    <input type="hidden" name="bagian" value="status">
+    <label>Status akun
+      <select name="status" required>
+        {% for code, name in person.account_choices %}
+        <option value="{{ code }}" {% if person.status_choice == code %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label><span id="status-date-name">{{ when.label }}</span>
+      <input type="date" name="tanggal" required value="{{ when.value }}">
+    </label>
+    <p class="muted" id="status-help">{{ when.help }}</p>
+    <div class="drawer-actions">
+      <button class="action" type="submit">Simpan status</button>
+      <a class="text-link" href="{{ url_for('data_profil', officer_id=person.id) }}">Buka profil</a>
+    </div>
+  </form>
+  {% endif %}
+</article>
+<script type="application/json" id="drawer-row">{{ snapshot|tojson }}</script>

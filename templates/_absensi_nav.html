@@ -1,0 +1,6 @@
+<nav class="section-switch" aria-label="Bagian absensi">
+  <a href="{{ url_for('absensi', lokasi=location_id, tanggal=tanggal) }}" {% if tab == 'hari' %}aria-current="page"{% endif %}>Hari kerja</a>
+  <a href="{{ url_for('data_shift', lokasi=location_id) }}">Shift</a>
+  <a href="{{ url_for('data_karyawan') }}">Karyawan</a>
+  <a href="{{ url_for('absensi_banding', lokasi=location_id, tanggal=tanggal) }}" {% if tab == 'banding' %}aria-current="page"{% endif %}>Banding{% if pending %} · {{ pending }}{% endif %}</a>
+</nav>

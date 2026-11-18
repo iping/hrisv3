@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ location.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=32">
+</head>
+<body>
+  {% set nav = 'penempatan' if tab == 'penempatan' else 'data' %}
+  {% set data = 'lokasi' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Lokasi</p>
+    <h1>{{ location.name }}</h1>
+    <p class="lede">{{ team|length }} petugas aktif · {{ location.shifts }} shift · tenggang {{ location.grace_minutes }} menit{% if location.min_jam %} · minimum {{ location.min_jam }} jam{% endif %}{% if location.latitude_text and location.longitude_text %} · titik GPS {{ location.latitude_text }}, {{ location.longitude_text }}{% if location.gps_radius_meters %} · {{ location.gps_radius_meters }} m{% endif %}{% endif %}</p>
+    {% if tab != 'penempatan' %}{% include "_data.html" %}{% endif %}
+    <nav class="section-switch" aria-label="Profil lokasi">
+      <a href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='profil') }}" {% if tab == 'profil' %}aria-current="page"{% endif %}>Profil</a>
+      <a href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='karyawan') }}" {% if tab == 'karyawan' %}aria-current="page"{% endif %}>Karyawan{% if team %} · {{ team|length }}{% endif %}</a>
+      <a href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='penempatan', tanggal=tanggal) }}" {% if tab == 'penempatan' %}aria-current="page"{% endif %}>Penempatan shift</a>
+      <a href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='riwayat') }}" {% if tab == 'riwayat' %}aria-current="page"{% endif %}>Riwayat</a>
+    </nav>
+    {% if info %}<p class="banner banner-ok" role="status">{{ info }}</p>{% elif saved %}<p class="banner banner-ok" role="status">Tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    {% if tab == 'profil' %}
+    <section class="panel">
+      <h2>Pengaturan lokasi</h2>
+      <p class="lede">Tenggang terlambat di lokasi ini dipakai semua shift, kecuali shift yang punya angka sendiri. Minimum kehadiran dipakai semua petugas, kecuali profil petugas punya angka sendiri.</p>
+      {% include "_lokasi_profil_form.html" %}
+    </section>
+
+    {% elif tab == 'karyawan' %}
+    <p class="lede">Petugas yang penempatannya masih berjalan di lokasi ini. Hadir dihitung dari kode Hadir dan Terlambat. Off dihitung dari Off, Cuti, Izin, dan Sakit. Alpa tidak masuk keduanya.{% if team %} Bulan {{ team[0].bulan }}.{% endif %}</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Petugas</th><th>Status</th><th>Hadir</th><th>Off</th><th>Mulai</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for row in team %}
+          <tr>
+            <td>
+              <strong>{{ row.nama }}</strong>
+              <span class="muted">{{ row.username }}{% if row.testing %} · testing{% endif %}</span>
+            </td>
+            <td>{{ row.status_label }}{% if row.new_joiner %} <span class="pill pill-baru">New Joiner</span>{% endif %}</td>
+            <td>{{ row.hadir_bulan }}{% if row.work_target is not none %} / {{ row.work_target }}{% endif %}{% if row.short_work %} <span class="code-note">Kurang</span>{% endif %}</td>
+            <td>{{ row.off_bulan }}{% if row.off_target is not none %} / {{ row.off_target }}{% endif %}{% if row.short_off %} <span class="code-note">Kurang</span>{% endif %}</td>
+            <td>{{ row.mulai }}</td>
+            <td><a class="text-link" href="{{ url_for('data_profil', officer_id=row.id) }}">Profil</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">Belum ada petugas di lokasi ini.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% elif tab == 'riwayat' %}
+    <p class="lede">Setiap perubahan profil, shift, dan penempatan lokasi ini tercatat di sini, termasuk siapa yang menyimpan.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Waktu</th><th>Bagian</th><th>Yang berubah</th><th>Dari → ke</th><th>Oleh</th></tr></thead>
+        <tbody>
+          {% for row in log %}
+          <tr>
+            <td>{{ row.when }}</td>
+            <td>{{ row.bagian_label }}</td>
+            <td>{{ row.field_label }}</td>
+            <td>{{ row.change }}</td>
+            <td>{{ row.actor_label }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">Belum ada perubahan.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <p class="lede">Pilih tanggal di kalender. Angka pada kotak adalah jumlah petugas di shift itu. Di bawah kalender, susunan tim ditampilkan per shift. Pola satu bulan bisa disalin dari bulan sebelumnya, lalu diubah per tanggal.</p>
+    <form method="post" class="tools copy-shift" action="{{ url_for('data_lokasi_profil', location_id=location.id) }}">
+      <input type="hidden" name="tab" value="penempatan">
+      <input type="hidden" name="aksi" value="salin">
+      <input type="hidden" name="tanggal" value="{{ tanggal }}">
+      <label>Salin pola dari
+        <input type="month" name="sumber" value="{{ sumber }}" required>
+      </label>
+      <button class="action" type="submit">Salin ke {{ month.label }}</button>
+    </form>
+    <p class="muted">Senin mengikuti Senin di bulan sumber. Hari yang sudah ada jam masuk tetap. Setelah salin, ubah satu tanggal lewat daftar di bawah.</p>
+    {% if month.legend %}
+    <ul class="shift-legend">
+      {% for shift in month.legend %}
+      <li><span class="cal-chip tone-{{ shift.tone }}">{{ shift.name }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lede">Lokasi ini belum punya shift. Tambah di <a href="{{ url_for('data_shift', lokasi=location.id) }}">Shift</a>.</p>
+    {% endif %}
+
+    <section class="month-board" aria-label="Kalender {{ month.label }}">
+      <div class="month-head">
+        <a class="month-nav" href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='penempatan', tanggal=month.prev) }}" aria-label="Bulan sebelumnya">‹</a>
+        <h2>{{ month.label }}</h2>
+        <a class="month-nav" href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='penempatan', tanggal=month.next) }}" aria-label="Bulan berikutnya">›</a>
+      </div>
+      <div class="cal-wrap">
+        <div class="cal">
+          {% for name in month.weekdays %}
+          <div class="cal-dow">{{ name }}</div>
+          {% endfor %}
+          {% for week in month.weeks %}
+            {% for cell in week %}
+            <a class="cal-day{% if not cell.in_month %} is-out{% endif %}{% if cell.selected %} is-selected{% endif %}{% if cell.today %} is-today{% endif %}"
+               href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='penempatan', tanggal=cell.iso) }}"
+               {% if cell.selected %}aria-current="date"{% endif %}
+               aria-label="{{ cell.day }} {{ month.label }}, {{ cell.people }} petugas">
+              <span class="cal-num">{{ cell.day }}</span>
+              {% for chip in cell.chips %}
+              <span class="cal-chip tone-{{ chip.tone }}">{{ chip.name }} {{ chip.n }}</span>
+              {% endfor %}
+              {% if cell.more %}<span class="cal-more">+{{ cell.more }} shift</span>{% endif %}
+            </a>
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel crew-panel">
+      <h2>Susunan tim {{ tanggal_label }}</h2>
+      {% if summary.people %}
+      <p class="lede">
+        {{ summary.people }} petugas{% if summary.lines %}:
+          {% for line in summary.lines %}{{ line.n }} di {{ line.name }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.
+        {% if summary.off %}{{ summary.off }} off.{% endif %}
+        {% if summary.open %}{{ summary.open }} belum ditugaskan.{% endif %}
+      </p>
+      {% endif %}
+      {% if groups %}
+      <form method="post" action="{{ url_for('data_lokasi_profil', location_id=location.id) }}">
+        <input type="hidden" name="tab" value="penempatan">
+        <input type="hidden" name="tanggal" value="{{ tanggal }}">
+        <div class="crew">
+          {% for group in groups %}
+          <article class="crew-card{% if group.tone is not none %} edge-{{ group.tone }}{% else %} edge-open{% endif %}">
+            <header>
+              <div>
+                <strong>{{ group.name }}</strong>
+                <span class="muted">{{ group.span_text }}</span>
+              </div>
+              <b>{{ group.people|length }}</b>
+            </header>
+            <ul>
+              {% for person in group.people %}
+              <li>
+                <span>{{ person.nama }} <span class="muted">{{ person.username }}</span></span>
+                <select name="tugas-{{ person.officer_id }}" aria-label="Shift {{ person.nama }}">
+                  <option value="">Tidak ditugaskan</option>
+                  <option value="off" {% if person.planned == 'OFF' and not person.shift_id %}selected{% endif %}>Off</option>
+                  {% for shift in board.shifts %}
+                  <option value="{{ shift.id }}" {% if person.shift_id == shift.id %}selected{% endif %}>{{ shift.name }} · {{ shift.span_text }}</option>
+                  {% endfor %}
+                </select>
+              </li>
+              {% endfor %}
+            </ul>
+          </article>
+          {% endfor %}
+        </div>
+        <div class="savebar">
+          <p>Pindahkan petugas dengan memilih shift lain, lalu simpan. Jam masuk tetap diisi di Absensi.</p>
+          <button class="action" type="submit">Simpan penempatan</button>
+        </div>
+      </form>
+      {% else %}
+      <p class="lede">Tidak ada petugas di lokasi ini pada tanggal tersebut.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+    <p><a class="text-link" href="{{ url_for('data_lokasi') }}">Semua lokasi</a></p>
+  </main>
+</body>
+</html>

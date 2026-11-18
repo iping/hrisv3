@@ -1,0 +1,14 @@
+<nav class="section-switch payroll-home-nav" aria-label="Bagian payroll">
+  <a href="{{ url_for('home') }}" {% if pay == 'bulan' %}aria-current="page"{% endif %}>
+    Bulan ini
+    <span>Unggah &amp; lanjutkan payroll</span>
+  </a>
+  <a href="{{ url_for('kelola') }}" {% if pay == 'lokasi' %}aria-current="page"{% endif %}>
+    Lokasi yang dibayar
+    <span>Pilih lokasi ikut payroll</span>
+  </a>
+  <a href="{{ url_for('kelola_petugas') }}" {% if pay == 'petugas' %}aria-current="page"{% endif %}>
+    Petugas yang dibayar
+    <span>Resign, baru, testing, mutasi</span>
+  </a>
+</nav>

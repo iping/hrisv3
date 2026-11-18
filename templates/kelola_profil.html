@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ person.nama }} · Profil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set pay = 'petugas' %}
+  {% include "_nav.html" %}
+  <main class="wrap profile-page">
+    {% include "_payroll.html" %}
+    <p class="kicker"><a class="back" href="{{ url_for('kelola_lokasi', lokasi=person.lokasi) }}">{{ person.lokasi }}</a></p>
+
+    <header class="identity">
+      <div class="avatar" aria-hidden="true">{{ person.nama[:1]|upper }}</div>
+      <div>
+        <p class="user-id">{{ person.username }}</p>
+        <h1>{{ person.nama }}</h1>
+        <div class="pills">
+          {% if person.testing %}
+          <span class="pill pill-test">Akun testing</span>
+          {% endif %}
+          {% if person.status == 'resign' %}
+          <span class="pill pill-resign">Resign{% if person.tanggal %} {{ person.tanggal }}{% endif %}</span>
+          {% elif person.status == 'baru' %}
+          <span class="pill pill-baru">Petugas baru{% if person.tanggal %} {{ person.tanggal }}{% endif %}</span>
+          {% elif not person.testing %}
+          <span class="pill pill-on">Aktif</span>
+          {% endif %}
+          {% if person.mutasi %}
+          <span class="pill pill-move">Mutasi{% if person.mutasi_dari %} dari {{ person.mutasi_dari }}{% endif %}</span>
+          {% endif %}
+          {% if person.testing or person.status == 'resign' %}
+          <span class="pill pill-off">Diabaikan di transfer</span>
+          {% endif %}
+          <span class="pill">{{ kode or "Kode lokasi belum ada" }}</span>
+          <a class="pill" href="{{ url_for('kelola_absensi', lokasi=person.lokasi, username=person.username) }}">Lihat absensi</a>
+        </div>
+      </div>
+    </header>
+
+    {% if saved %}
+    <p class="banner banner-ok" role="status">Profil tersimpan. File transfer berikutnya memakai rekening ini.</p>
+    {% endif %}
+    <p id="warn-name" class="banner" hidden>Nama di rekening berbeda dari nama HRIS. Baris transfer akan ditandai beda nama.</p>
+    <p id="warn-empty" class="banner" {% if profile.rekening or person.testing or person.status == 'resign' %}hidden{% endif %}>Nomor rekening masih kosong, jadi petugas ini belum siap ditransfer.</p>
+
+    <form class="panel employment" method="post" action="{{ url_for('save_profil', lokasi=person.lokasi, username=person.username) }}">
+      <input type="hidden" name="bagian" value="status">
+      <h2>Status kerja</h2>
+      <p class="muted">{{ tip('Akun testing') }} dan {{ tip('Resign') }} tidak masuk file transfer berikutnya. {{ tip('Petugas baru') }} dan {{ tip('Mutasi kantor') }} tetap dihitung.</p>
+      <div class="employment-grid">
+        <label class="field">Status
+          <select name="status">
+            <option value="aktif" {% if person.status == 'aktif' %}selected{% endif %}>Aktif</option>
+            <option value="baru" {% if person.status == 'baru' %}selected{% endif %}>Petugas baru</option>
+            <option value="resign" {% if person.status == 'resign' %}selected{% endif %}>Resign</option>
+          </select>
+        </label>
+        <label class="field">Tanggal
+          <input name="tanggal" type="date" value="{{ person.tanggal }}">
+        </label>
+        <label class="field">Kantor asal
+          <input name="mutasi_dari" value="{{ person.mutasi_dari }}" placeholder="Lokasi sebelum pindah">
+        </label>
+      </div>
+      <div class="flag-checks flag-row">
+        <label><input type="checkbox" name="testing" value="1" {% if person.testing %}checked{% endif %}> Akun testing, abaikan di payroll berikutnya</label>
+        <label><input type="checkbox" name="mutasi" value="1" {% if person.mutasi %}checked{% endif %}> Mutasi kantor</label>
+      </div>
+      {% if person.kantor_lain %}
+      <p class="muted">Username ini juga ada di {{ person.kantor_lain|join(', ') }}. Tandai resign di kantor yang lama kalau gajinya tidak boleh dobel.</p>
+      {% endif %}
+      {% if person.saran %}<p class="muted">{{ person.saran }}</p>{% endif %}
+      <button class="action" type="submit">Simpan status</button>
+    </form>
+
+    {% if history.lines or history.appeals %}
+    <section class="panel">
+      <h2>Payroll terakhir</h2>
+      {% if history.lines %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Periode</th>
+              <th>Status</th>
+              <th>Gaji HRIS</th>
+              <th>Hasil hitung</th>
+              <th>Selisih</th>
+              <th>Alpa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in history.lines %}
+            <tr>
+              <td>{{ row.period_start }} s/d {{ row.period_end }}</td>
+              <td>{{ row.status or "aktif" }}</td>
+              <td class="num">{{ row.paid | rp }}</td>
+              <td class="num">{{ row.hitung | rp }}</td>
+              <td class="num">{{ row.selisih | rp }}</td>
+              <td class="num">{{ row.alpha }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if history.appeals %}
+      <h3>Banding</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Periode</th>
+              <th>Tanggal</th>
+              <th>Dari</th>
+              <th>Menjadi</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in history.appeals %}
+            <tr>
+              <td>{{ row.period_start }}</td>
+              <td>{{ row.attendance_date }}</td>
+              <td>{{ row.before_status }}</td>
+              <td>{{ row.after_status }}</td>
+              <td>{{ row.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <div class="profile-grid">
+      <section class="panel facts">
+        <h2>Dari HRIS</h2>
+        <dl>
+          <div>
+            <dt>Username</dt>
+            <dd>{{ person.username }}</dd>
+          </div>
+          <div>
+            <dt>Nama</dt>
+            <dd>{{ person.nama }}</dd>
+          </div>
+          <div>
+            <dt>Lokasi</dt>
+            <dd>{{ person.lokasi }}</dd>
+          </div>
+          <div>
+            <dt>Kode transfer</dt>
+            <dd>{{ kode or "Belum diisi di halaman lokasi" }}</dd>
+          </div>
+          <div>
+            <dt>Gaji di slip</dt>
+            <dd>{{ person.paid | rp }}</dd>
+          </div>
+        </dl>
+        {% if person.saran %}<p class="muted">{{ person.saran }}</p>{% endif %}
+      </section>
+
+      <form class="panel profile-form" action="{{ url_for('save_profil', lokasi=person.lokasi, username=person.username) }}" method="post">
+        <input type="hidden" name="bagian" value="rekening">
+        <h2>Rekening transfer</h2>
+        <p class="muted">Ini yang tercetak di file bank. Nama boleh beda dari HRIS kalau buku tabungan memakai nama lain.</p>
+        <label class="field">Nama di rekening
+          <input id="nama-rekening" name="nama_rekening" value="{{ profile.nama_rekening or person.nama }}" autocomplete="name" data-hris="{{ person.nama }}">
+        </label>
+        <label class="field">Bank
+          <select id="bank" name="bank">
+            {% set banks = ['BCA', 'Mandiri', 'BRI', 'BNI', 'BSI', 'CIMB Niaga', 'Permata', 'Danamon'] %}
+            {% set current = profile.bank or 'BCA' %}
+            {% if current not in banks %}
+            <option value="{{ current }}" selected>{{ current }}</option>
+            {% endif %}
+            {% for bank in banks %}
+            <option value="{{ bank }}" {% if current == bank %}selected{% endif %}>{{ bank }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">Nomor rekening
+          <input id="rekening" name="rekening" value="{{ profile.rekening or '' }}" inputmode="numeric" autocomplete="off" placeholder="Tanpa spasi">
+        </label>
+        <label class="field">Catatan
+          <input name="catatan" value="{{ profile.catatan or '' }}" placeholder="Contoh: beda nama, atau petugas baru">
+        </label>
+
+        <article class="slip" aria-live="polite">
+          <p class="muted">Tampil di file transfer</p>
+          <p class="slip-remark" id="slip-remark">{{ kode or person.lokasi }}</p>
+          <p class="slip-account" id="slip-account">{{ profile.rekening or "Nomor rekening belum diisi" }}</p>
+          <p class="slip-meta"><span id="slip-bank">{{ profile.bank or "BCA" }}</span> · <span id="slip-name">{{ profile.nama_rekening or person.nama }}</span></p>
+          <p class="slip-amount">{{ person.paid | rp }}</p>
+        </article>
+
+        <button class="action" type="submit">Simpan profil</button>
+      </form>
+    </div>
+  </main>
+  <script>
+    const nameInput = document.getElementById("nama-rekening");
+    const bankInput = document.getElementById("bank");
+    const accountInput = document.getElementById("rekening");
+    const warnName = document.getElementById("warn-name");
+    const warnEmpty = document.getElementById("warn-empty");
+    const hrisName = (nameInput.dataset.hris || "").toLowerCase().replace(/\s+/g, " ").trim();
+
+    function grouped(value) {
+      const digits = value.replace(/\s+/g, "");
+      return digits.replace(/(.{4})/g, "$1 ").trim();
+    }
+
+    function refresh() {
+      const account = accountInput.value.replace(/\s+/g, "");
+      const holder = nameInput.value.trim();
+      document.getElementById("slip-account").textContent = account ? grouped(account) : "Nomor rekening belum diisi";
+      document.getElementById("slip-bank").textContent = bankInput.value || "Bank";
+      document.getElementById("slip-name").textContent = holder || "Nama rekening kosong";
+      const same = holder.toLowerCase().replace(/\s+/g, " ").trim() === hrisName;
+      warnName.hidden = !holder || same;
+      const ignored = {{ 'true' if person.testing or person.status == 'resign' else 'false' }};
+      warnEmpty.hidden = ignored || account.length > 0;
+    }
+
+    [nameInput, bankInput, accountInput].forEach(function (field) {
+      field.addEventListener("input", refresh);
+      field.addEventListener("change", refresh);
+    });
+    refresh();
+  </script>
+</body>
+</html>

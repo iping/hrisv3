@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.nama }} · Absensi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set pay = 'petugas' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    {% include "_payroll.html" %}
+    <p class="kicker"><a class="back" href="{{ url_for('kelola_lokasi', lokasi=page.lokasi) }}">{{ page.lokasi }}</a></p>
+    <h1>{{ page.nama }}</h1>
+    <p class="lede">{{ page.username }} · absensi harian dari tarikan HRIS. Satu sel bisa berisi lebih dari satu status, misalnya A | A.</p>
+    {% if page.terisi == 0 %}
+    <p class="banner" role="status">Tidak ada status absensi yang terisi untuk petugas ini pada periode tarikan.</p>
+    {% endif %}
+    <section class="stats">
+      <article>
+        <p>Hadir</p>
+        <strong>{{ page.hadir }}</strong>
+      </article>
+      <article>
+        <p>Terlambat</p>
+        <strong>{{ page.telat }}</strong>
+      </article>
+      <article>
+        <p>Alpa</p>
+        <strong>{{ page.alpa }}</strong>
+      </article>
+    </section>
+    <div class="tools">
+      <div class="chips" id="chips">
+        <button type="button" class="chip is-on" data-filter="all">Semua hari</button>
+        <button type="button" class="chip" data-filter="alpa">Alpa</button>
+        <button type="button" class="chip" data-filter="telat">Terlambat</button>
+        <button type="button" class="chip" data-filter="hadir">Hadir</button>
+        <button type="button" class="chip" data-filter="off">Off</button>
+        <button type="button" class="chip" data-filter="lembur">Ada lembur</button>
+      </div>
+    </div>
+    <p class="muted" id="shown">{{ page.days|length }} hari</p>
+    {% if not page.days %}
+    <p class="lede">Tidak ada baris absensi untuk petugas ini.</p>
+    {% else %}
+    <div class="day-list" id="days">
+      {% for day in page.days %}
+      <article class="day{% if day.warn %} day-warn{% endif %}" data-flags="{{ day.flags }}" data-ot="{{ day.overtime|length }}">
+        <div class="day-date">
+          <strong>{{ day.day }}</strong>
+          <span>{{ day.month }}</span>
+          <span class="muted">{{ day.weekday }}</span>
+        </div>
+        <div>
+          <p class="day-shift">{{ day.shift or "Tanpa shift" }}</p>
+          <div class="pills">
+            {% if day.badges %}
+              {% for item in day.badges %}
+              <span class="pill pill-{{ item.kind }}">{{ item.label }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="pill pill-kosong">Kosong</span>
+            {% endif %}
+          </div>
+          {% for item in day.overtime %}
+          <p class="day-ot">Lembur {{ item.jam_text }} jam · fee {{ item.fee | rp }}{% if item.masuk %} · masuk {{ item.masuk }}{% endif %}{% if item.keluar %} · keluar {{ item.keluar }}{% endif %}</p>
+          {% endfor %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <p id="empty" class="lede" hidden>Tidak ada hari yang cocok.</p>
+    <p class="muted legend-line">Off {{ page.off }} · izin {{ page.izin }} · sakit {{ page.sakit }} · cuti {{ page.cuti }} · record lembur {{ page.lembur }}</p>
+    {% endif %}
+  </main>
+  <script>
+    const chips = document.getElementById("chips");
+    const shown = document.getElementById("shown");
+    const empty = document.getElementById("empty");
+    let mode = "all";
+    function applyFilter() {
+      let visible = 0;
+      document.querySelectorAll("#days article").forEach(function (card) {
+        const flags = card.dataset.flags || "";
+        const matches = mode === "all"
+          || (mode === "lembur" && Number(card.dataset.ot) > 0)
+          || flags.split(" ").indexOf(mode) !== -1;
+        card.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      if (shown) shown.textContent = visible + " hari";
+      if (empty) empty.hidden = visible !== 0;
+    }
+    if (chips) {
+      chips.addEventListener("click", function (event) {
+        const button = event.target.closest("button");
+        if (!button) return;
+        mode = button.dataset.filter;
+        chips.querySelectorAll("button").forEach(function (item) {
+          item.classList.toggle("is-on", item === button);
+        });
+        applyFilter();
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Penempatan shift</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'penempatan' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Penempatan shift</p>
+    <h1>Siapa menghadiri shift</h1>
+    <p class="lede">Pilih lokasi dan tanggal. Tiap petugas ditugaskan ke satu shift untuk hari itu. Minimum dan maksimum kehadiran diatur di profil karyawan. Lebih dari maksimum dihitung lembur.</p>
+    {% if saved %}<p class="banner banner-ok" role="status">Penempatan shift tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    {% if not locations %}
+    <p class="lede">Belum ada lokasi.</p>
+    {% else %}
+    <form method="get" class="tools" action="{{ url_for('penempatan') }}">
+      <label>Lokasi
+        <select name="lokasi">
+          {% for row in locations %}
+          <option value="{{ row.id }}" {% if row.id == location_id %}selected{% endif %}>{{ row.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Tanggal
+        <input type="date" name="tanggal" value="{{ tanggal }}" required>
+      </label>
+      <button class="action" type="submit">Tampilkan</button>
+    </form>
+
+    {% if board %}
+    <form method="post" action="{{ url_for('penempatan') }}">
+      <input type="hidden" name="lokasi" value="{{ location_id }}">
+      <input type="hidden" name="tanggal" value="{{ tanggal }}">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Petugas</th>
+              <th>Shift yang dihadiri</th>
+              <th>Minimum</th>
+              <th>Maksimum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for person in board.people if person.slot_no <= 1 %}
+            <tr>
+              <td>
+                <strong>{{ person.nama }}</strong>
+                <span class="muted">{{ person.username }}</span>
+              </td>
+              <td>
+                <select name="tugas-{{ person.officer_id }}" aria-label="Shift {{ person.nama }}">
+                  <option value="">Tidak ditugaskan</option>
+                  {% for shift in board.shifts %}
+                  <option value="{{ shift.id }}" {% if person.shift_id == shift.id %}selected{% endif %}>{{ shift.name }} · {{ shift.span_text }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>{% if person.min_jam %}{{ person.min_jam }} jam{% else %}<span class="muted">Belum diatur</span>{% endif %}</td>
+              <td>{% if person.max_jam %}{{ person.max_jam }} jam · lebih dari ini lembur{% else %}<span class="muted">Ikut jam selesai shift</span>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">Tidak ada petugas di lokasi ini pada tanggal tersebut.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="savebar">
+        <p>Satu simpan untuk penempatan hari ini. Jam masuk tetap diisi di Absensi.</p>
+        <button class="action" type="submit">Simpan penempatan</button>
+      </div>
+    </form>
+    {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arsip payroll</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'arsip' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Bulan yang sudah disimpan</p>
+    <h1>Arsip</h1>
+    <p class="lede">Setiap tarikan yang dianalisis tersimpan di sini: slip, tanggal masuk, tanggal resign, dan pengajuan banding. Bulan yang sama ditimpa kalau filenya diunggah lagi.</p>
+    {% if not months %}
+    <p class="lede">Belum ada bulan tersimpan. Upload tarikan HRIS dulu.</p>
+    {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Periode</th>
+            <th>File</th>
+            <th>Petugas</th>
+            <th>{{ tip('Gaji HRIS') }}</th>
+            <th>{{ tip('Petugas baru') }}</th>
+            <th>{{ tip('Resign') }}</th>
+            <th>{{ tip('Banding') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in months %}
+          <tr>
+            <td>{{ row.period_start }} s/d {{ row.period_end }}</td>
+            <td>{{ row.source_name }}</td>
+            <td class="num">{{ row.officer_count }}</td>
+            <td class="num">{{ row.hris_total | rp }}</td>
+            <td class="num">{{ row.baru_count }}</td>
+            <td class="num">{{ row.resign_count }}</td>
+            <td class="num">{{ row.appeal_count }}</td>
+            <td><a class="text-link" href="{{ url_for('arsip_bulan', month_id=row.id) }}">Buka</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,4 @@
+<nav class="section-switch" aria-label="Bagian lokasi">
+  <a href="{{ url_for('data_lokasi') }}" {% if data == 'lokasi' %}aria-current="page"{% endif %}>Lokasi</a>
+  <a href="{{ url_for('data_shift') }}" {% if data == 'shift' %}aria-current="page"{% endif %}>Shift</a>
+</nav>

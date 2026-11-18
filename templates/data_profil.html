@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profil {{ person.nama }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=35">
+</head>
+<body>
+  {% set nav = 'petugas' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Petugas</p>
+    <h1>{{ person.nama }}</h1>
+    <p class="lede">{{ person.username }}{% if person.posisi_label %} · {{ person.posisi_label }}{% endif %} · {{ person.status_label }}{% if person.new_joiner %} · New Joiner{% endif %}</p>
+    {% include "_profil_body.html" %}
+    <p><a class="text-link" href="{{ url_for('data_karyawan') }}">Kembali ke daftar petugas</a></p>
+  </main>
+  <script>
+    (function () {
+      var form = document.querySelector("main form");
+      if (!form) return;
+      function syncWorkStatusDate(root) {
+        var select = root.querySelector('select[name="status"]');
+        var blob = root.querySelector("#work-status-dates");
+        if (!select || !blob) return;
+        var dates = JSON.parse(blob.textContent);
+        var item = dates.find(function (entry) { return entry.code === select.value; });
+        var name = root.querySelector("#status-date-name");
+        var input = root.querySelector('input[name="tanggal"]');
+        var help = root.querySelector("#status-help");
+        if (item) {
+          if (name) name.textContent = item.label;
+          if (input) input.value = item.value || "";
+          if (help) help.textContent = item.help || "";
+        }
+        var ojtStart = root.querySelector("#ojt-start-field");
+        if (ojtStart) ojtStart.hidden = select.value === "ojt";
+      }
+      form.addEventListener("change", function (event) {
+        if (event.target && event.target.name === "status") syncWorkStatusDate(form);
+      });
+    })();
+  </script>
+</body>
+</html>

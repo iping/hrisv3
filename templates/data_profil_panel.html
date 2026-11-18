@@ -1,0 +1,9 @@
+<article class="drawer-sheet drawer-sheet-wide" data-officer="{{ person.id }}" {% if saved and not salah %}data-saved="1"{% endif %}>
+  <h1>{{ person.nama }}</h1>
+  <div class="drawer-person">
+    <strong>{{ person.nama }}</strong>
+    <span>{{ person.username }}{% if person.posisi_label %} · {{ person.posisi_label }}{% endif %} · {{ person.status_label }}{% if person.new_joiner %} · {{ tip('New Joiner') }}{% endif %}</span>
+  </div>
+  {% include "_profil_body.html" %}
+</article>
+<script type="application/json" id="drawer-row">{{ snapshot|tojson }}</script>

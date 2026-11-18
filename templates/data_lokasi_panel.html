@@ -1,0 +1,15 @@
+<article class="drawer-sheet" data-location="{{ location.id }}" {% if saved and not salah %}data-saved="1"{% endif %}>
+  <h1>{{ location.name }}</h1>
+  <p class="lede">{{ location.people }} petugas aktif · {{ location.shifts }} shift · tenggang {{ location.grace_minutes }} menit{% if location.min_jam %} · minimum {{ location.min_jam }} jam{% endif %}</p>
+  {% if saved and not salah %}<p class="banner banner-ok" role="status">Profil lokasi tersimpan.</p>{% endif %}
+  {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+  <section class="panel">
+    <h2>Pengaturan lokasi</h2>
+    <p class="lede">Tenggang terlambat di lokasi ini dipakai semua shift, kecuali shift yang punya angka sendiri. Minimum kehadiran dipakai semua petugas, kecuali profil petugas punya angka sendiri.</p>
+    {% set panel = true %}
+    {% include "_lokasi_profil_form.html" %}
+  </section>
+  <p><a class="text-link" href="{{ url_for('data_lokasi_profil', location_id=location.id, tab='riwayat') }}">Lihat riwayat lokasi</a></p>
+  <p><a class="text-link" href="{{ url_for('data_lokasi_profil', location_id=location.id) }}">Buka halaman lokasi</a></p>
+</article>
+<script type="application/json" id="drawer-row">{{ snapshot|tojson }}</script>

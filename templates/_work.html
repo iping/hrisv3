@@ -1,0 +1,32 @@
+<div class="workbar">
+  <nav class="wrap{% if wide %} wide{% endif %} work" aria-label="Langkah bulan ini">
+    <a href="{{ url_for('report', sid=sid) }}" {% if step == 'cek' %}aria-current="page"{% endif %}>
+      <span>1</span>
+      <em>
+        <strong>Cek angka</strong>
+        <small>Ringkas total &amp; selisih</small>
+      </em>
+    </a>
+    <a href="{{ url_for('view_hitung', sid=sid) }}" {% if step == 'slip' %}aria-current="page"{% endif %}>
+      <span>2</span>
+      <em>
+        <strong>Hasil hitung</strong>
+        <small>Slip &amp; rincian gaji</small>
+      </em>
+    </a>
+    <a href="{{ url_for('view_transfer', sid=sid) }}" {% if step == 'transfer' %}aria-current="page"{% endif %}>
+      <span>3</span>
+      <em>
+        <strong>File transfer</strong>
+        <small>Siap diunggah ke bank</small>
+      </em>
+    </a>
+    <a href="{{ url_for('view_final', sid=sid) }}" {% if step == 'bayar' %}aria-current="page"{% endif %}>
+      <span>4</span>
+      <em>
+        <strong>Ringkasan akhir</strong>
+        <small>Keputusan bayar</small>
+      </em>
+    </a>
+  </nav>
+</div>

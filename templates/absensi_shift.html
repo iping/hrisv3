@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shift</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'absensi' %}
+  {% set tab = 'shift' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Absensi</p>
+    <h1>Shift dan lokasi</h1>
+    <p class="lede">Shift menentukan jam harus masuk dan berapa menit masih dihitung hadir. Lewat dari itu menjadi terlambat. Tidak ada jam masuk pada shift yang dijadwalkan menjadi alpa.</p>
+    {% include "_absensi_nav.html" %}
+    {% if saved %}<p class="banner banner-ok" role="status">Tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    <div class="split">
+      <section class="panel">
+        <h2>Shift di lokasi ini</h2>
+        {% if locations %}
+        <form method="get" class="tools" action="{{ url_for('absensi_shift') }}">
+          <input type="hidden" name="tanggal" value="{{ tanggal }}">
+          <label>Lokasi
+            <select name="lokasi" onchange="this.form.submit()">
+              {% for row in locations %}
+              <option value="{{ row.id }}" {% if row.id == location_id %}selected{% endif %}>{{ row.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nama</th><th>Jam</th><th>Tenggang</th></tr></thead>
+            <tbody>
+              {% for shift in shifts %}
+              <tr>
+                <td>{{ shift.name }}</td>
+                <td>{{ shift.span_text }}</td>
+                <td>{% if shift.follows_location %}Ikut lokasi · {{ shift.grace_used }} menit{% else %}Tidak ikut lokasi · {{ shift.grace_used }} menit{% endif %}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3">Belum ada shift.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <form method="post" action="{{ url_for('absensi_shift') }}">
+          <input type="hidden" name="lokasi" value="{{ location_id }}">
+          <input type="hidden" name="tanggal" value="{{ tanggal }}">
+          <input type="hidden" name="aksi" value="shift">
+          <label>Nama shift<input type="text" name="nama" required placeholder="Siang"></label>
+          <label>Jam mulai, hari ini<input type="time" name="mulai" required value="22:00"></label>
+          <label>Jam selesai<input type="time" name="selesai" required value="10:00"></label>
+          <label>Selesai pada
+            <select name="hari">
+              <option value="ini">Hari ini</option>
+              <option value="besok" selected>Besok</option>
+            </select>
+          </label>
+          <label>Tenggang terlambat, menit<input type="number" name="tenggang" min="0" placeholder="Kosong = ikut lokasi"></label>
+          <button class="action" type="submit">Tambah shift</button>
+        </form>
+        {% endif %}
+      </section>
+      <section class="panel">
+        <h2>Lokasi baru</h2>
+        <p class="lede">Lokasi dari data payroll sudah disalin. Tambah kantor yang belum ada di sana.</p>
+        <form method="post" action="{{ url_for('absensi_shift') }}">
+          <input type="hidden" name="aksi" value="lokasi">
+          <input type="hidden" name="tanggal" value="{{ tanggal }}">
+          <label>Nama lokasi<input type="text" name="nama" required></label>
+          <button class="action" type="submit">Tambah lokasi</button>
+        </form>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

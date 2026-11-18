@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ringkasan akhir</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=57">
+</head>
+<body class="grid-page">
+  {% set nav = 'payroll' %}
+  {% set wide = true %}
+  {% set sid = page.sid %}
+  {% set step = 'bayar' %}
+  {% include "_nav.html" %}
+  {% include "_work.html" %}
+  <main class="wrap wide">
+    <div class="page-head">
+      <div>
+        <h1>Siapkan bayar</h1>
+        <p class="lede">
+          Satu baris per petugas. Kolom sampai {{ tip('Selisih') }} mengikuti {{ tip('Slip') }}.
+          Kolom {{ tip('Transfer') }} bisa diubah, diberi catatan, atau dikeluarkan.
+          File Accounting memakai perubahan yang sama. {{ tip('Remark') }} ikut ke mutasi bank.
+          Sumber: {{ page.source_name }}.
+        </p>
+      </div>
+      <div class="page-actions">
+        <a class="button-ghost" href="{{ url_for('view_hitung', sid=page.sid) }}">Buka tabel hasil hitung</a>
+        <a class="button-ghost" href="{{ url_for('view_transfer', sid=page.sid) }}">Buka tabel transfer</a>
+        <a class="action" href="{{ url_for('download_transfer', sid=page.sid) }}">Unduh transfer</a>
+      </div>
+    </div>
+    {% if page.saved %}
+    <p class="banner banner-ok" role="status">Tersimpan. Accounting dan unduhan transfer mengikuti baris yang masih ikut.</p>
+    {% endif %}
+
+    <section class="stats">
+      <article>
+        <p>Di slip gaji</p>
+        <strong>{{ page.stats.slip }}</strong>
+        <span>Gaji HRIS {{ page.stats.hris | rp }}</span>
+      </article>
+      <article>
+        <p>Ikut transfer</p>
+        <strong>{{ page.stats.amount | rp }}</strong>
+        <span>{{ page.stats.transfer }} petugas</span>
+      </article>
+      <article>
+        <p>Dikeluarkan</p>
+        <strong>{{ page.stats.deleted }}</strong>
+        <span>{{ page.stats.notes }} baris ada catatan</span>
+      </article>
+    </section>
+
+    <div class="tools">
+      <input id="q" type="search" placeholder="Cari nama, lokasi, rekening, atau trx" aria-label="Cari di ringkasan">
+      <div class="chips" id="chips">
+        <button type="button" class="chip is-on" data-filter="all">Semua</button>
+        <button type="button" class="chip" data-filter="ikut">Ikut transfer</button>
+        <button type="button" class="chip" data-filter="keluar">Dikeluarkan</button>
+        <button type="button" class="chip" data-filter="luar">Tidak masuk</button>
+      </div>
+      <p class="muted" id="shown"></p>
+    </div>
+
+    <form method="post" action="{{ url_for('save_final', sid=page.sid) }}">
+      <div class="savebar">
+        <p class="muted">Kotak berwarna kuning sudah pernah diubah. Simpan supaya Accounting ikut berubah.</p>
+        <button class="action" type="submit">Simpan perubahan</button>
+      </div>
+      <div class="sheet-scroll">
+        <table class="grid" id="people">
+          <thead>
+            <tr>
+              <th class="rowno"></th>
+              <th class="sticky">Lokasi</th>
+              <th>Nama</th>
+              <th>Username</th>
+              <th>Gaji pokok</th>
+              <th>Jabatan</th>
+              <th>BPJS kes</th>
+              <th>BPJS tk</th>
+              <th>Prorate</th>
+              <th>Tunj. lain</th>
+              <th>Jam lembur</th>
+              <th>Lembur HRIS</th>
+              <th>Lembur hitung</th>
+              <th>Alpa</th>
+              <th>Denda HRIS</th>
+              <th>Denda hitung</th>
+              <th>Potongan lain</th>
+              <th>Gaji HRIS</th>
+              <th>Gaji dihitung</th>
+              <th>Selisih</th>
+              <th class="col-start">Status</th>
+              <th>Trx ID</th>
+              <th>Bank</th>
+              <th>Rekening</th>
+              <th>Penerima</th>
+              <th>Amount</th>
+              <th>Remark</th>
+              <th>Cek</th>
+              <th>Catatan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in page.rows %}
+            <tr class="{{ 'is-out' if row.deleted else '' }}" data-state="{{ row.state }}" data-text="{{ row.search }}">
+              <td class="rowno">{{ loop.index }}</td>
+              <td class="sticky">{{ row.lokasi }}</td>
+              <td>{{ row.nama }}</td>
+              <td>{{ row.username }}</td>
+              <td class="num">{{ row.basic | num }}</td>
+              <td class="num">{{ row.jabatan | num }}</td>
+              <td class="num">{{ row.bpjs_kes | num }}</td>
+              <td class="num">{{ row.bpjs_tk | num }}</td>
+              <td class="num">{{ row.prorate | num }}</td>
+              <td class="num">{{ row.lain_tunjangan | num }}</td>
+              <td class="num">{{ row.jam_lembur | num }}</td>
+              <td class="num">{{ row.lembur_hris | num }}</td>
+              <td class="num">{{ row.lembur_hitung | num }}</td>
+              <td class="num">{{ row.alpha }}</td>
+              <td class="num">{{ row.denda_hris | num }}</td>
+              <td class="num">{{ row.denda_hitung | num }}</td>
+              <td class="num">{{ row.potongan | num }}</td>
+              <td class="num">{{ row.paid | num }}</td>
+              <td class="num">{{ row.hitung | num }}</td>
+              <td class="num {{ 'pos' if row.selisih > 1 else 'neg' if row.selisih < -1 else '' }}">{{ row.selisih | num }}</td>
+              <td class="col-start">{{ row.status }}</td>
+              <td>{{ row.trx }}</td>
+              <td><input type="text" name="bank" value="{{ row.bank }}" class="{{ 'is-edited' if 'bank' in row.overrides else '' }}" aria-label="Bank {{ row.nama }}"></td>
+              <td><input type="text" name="rekening" value="{{ row.rekening }}" class="{{ 'is-edited' if 'rekening' in row.overrides else '' }}" aria-label="Rekening {{ row.nama }}"></td>
+              <td><input type="text" name="penerima" value="{{ row.penerima }}" class="{{ 'is-edited' if 'penerima' in row.overrides else '' }}" aria-label="Penerima {{ row.nama }}"></td>
+              <td><input type="text" name="amount" value="{{ row.amount | num }}" class="num {{ 'is-edited' if 'amount' in row.overrides else '' }}" aria-label="Amount {{ row.nama }}"></td>
+              <td><input type="text" name="remark" value="{{ row.remark }}" class="{{ 'is-edited' if 'remark' in row.overrides else '' }}" aria-label="Remark {{ row.nama }}"></td>
+              <td class="{{ 'tag-warn' if row.system != '-' else '' }}">{{ row.system }}</td>
+              <td><textarea name="catatan" rows="1" class="{{ 'is-edited' if 'catatan' in row.overrides else '' }}" aria-label="Catatan {{ row.nama }}">{{ row.catatan }}</textarea></td>
+              <td>
+                <input type="hidden" name="key" value="{{ row.key }}">
+                <input type="hidden" name="deleted" value="{{ '1' if row.deleted else '0' }}" class="deleted-flag">
+                {% if row.include %}
+                  {% if row.deleted %}
+                  <button type="submit" class="ghost" data-set-deleted="0">Kembalikan</button>
+                  {% else %}
+                  <button type="submit" class="ghost" data-set-deleted="1">Keluarkan</button>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="lede sheet-empty" hidden>Tidak ada baris yang cocok.</p>
+      <div class="savebar">
+        <p class="muted" id="save-note">Perubahan baru ikut tersimpan bersama catatan dan baris yang dikeluarkan.</p>
+        <button class="action" type="submit">Simpan perubahan</button>
+      </div>
+    </form>
+  </main>
+  <script>
+    const input = document.getElementById("q");
+    const shown = document.getElementById("shown");
+    const chips = document.getElementById("chips");
+    const empty = document.querySelector(".sheet-empty");
+    let mode = "all";
+
+    function applyFilter() {
+      const text = input.value.toLowerCase().trim();
+      const digits = text.replace(/\D/g, "");
+      let visible = 0;
+      const rows = document.querySelectorAll("#people tbody tr");
+      rows.forEach(function (row) {
+        const haystack = row.dataset.text || "";
+        const matchesText = !text || haystack.indexOf(text) !== -1 || (digits && haystack.indexOf(digits) !== -1);
+        const matchesMode = mode === "all" || row.dataset.state === mode;
+        const show = matchesText && matchesMode;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      shown.textContent = (text || mode !== "all") ? visible + " dari " + rows.length + " baris" : rows.length + " baris";
+      if (empty) empty.hidden = visible !== 0;
+    }
+
+    input.addEventListener("input", applyFilter);
+    chips.addEventListener("click", function (event) {
+      const button = event.target.closest("button");
+      if (!button) return;
+      mode = button.dataset.filter;
+      chips.querySelectorAll("button").forEach(function (item) {
+        item.classList.toggle("is-on", item === button);
+      });
+      applyFilter();
+    });
+    document.querySelectorAll("[data-set-deleted]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        button.closest("tr").querySelector(".deleted-flag").value = button.dataset.setDeleted;
+      });
+    });
+    applyFilter();
+  </script>
+</body>
+</html>

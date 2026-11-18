@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Absensi hari kerja</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'absensi' %}
+  {% set tab = 'hari' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Absensi</p>
+    <h1>Hari kerja</h1>
+    <p class="lede">Pilih lokasi dan tanggal. Tiap petugas dipilih shiftnya untuk hari itu. Jam masuk dibandingkan dengan jam mulai hari ini. Kalau shift selesai besok, jam keluar sesudah jam itu dihitung lembur.</p>
+    {% include "_absensi_nav.html" %}
+    {% if saved %}<p class="banner banner-ok" role="status">Absensi tersimpan. Kode mengikuti jam dan jadwal, kecuali banding yang sudah disetujui.</p>{% endif %}
+    {% if info %}<p class="banner banner-ok" role="status">{{ info }}</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    {% if not locations %}
+    <p class="lede">Belum ada lokasi. Tambah di halaman Shift.</p>
+    {% else %}
+    <form method="get" class="tools" action="{{ url_for('absensi') }}">
+      <label>Lokasi
+        <select name="lokasi">
+          {% for row in locations %}
+          <option value="{{ row.id }}" {% if row.id == location_id %}selected{% endif %}>{{ row.name }}{% if not row.active %} · nonaktif{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Tanggal
+        <input type="date" name="tanggal" value="{{ tanggal }}" required>
+      </label>
+      <button class="action" type="submit">Tampilkan</button>
+    </form>
+
+    {% if board %}
+    <section class="stats">
+      <article><p>Hadir</p><strong>{{ board.hadir }}</strong></article>
+      <article><p>Terlambat</p><strong>{{ board.telat }}</strong></article>
+      <article class="stat-up"><p>Alpa</p><strong>{{ board.alpa }}</strong></article>
+    </section>
+    <p class="muted">{{ board.scheduled }} slot terjadwal · {{ board.unscheduled }} belum dipilih shiftnya · {{ board.off }} off, cuti, izin, atau sakit. Shift diatur per hari di tabel ini. Jam shift diubah di <a class="text-link" href="{{ url_for('data_shift', lokasi=location_id) }}">Data Shift</a>.</p>
+
+    <form method="post" action="{{ url_for('absensi') }}">
+      <input type="hidden" name="lokasi" value="{{ location_id }}">
+      <input type="hidden" name="tanggal" value="{{ tanggal }}">
+      <input type="hidden" name="aksi" value="simpan">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Petugas</th>
+              <th>Shift</th>
+              <th>Rencana</th>
+              <th>Masuk</th>
+              <th>Keluar</th>
+              <th>Kode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for person in board.people %}
+            <tr>
+              <td>
+                <strong>{{ person.nama }}</strong>
+                <span class="muted">{{ person.username }}{% if person.slot_no > 1 %} · slot {{ person.slot_no }}{% endif %}</span>
+                {% if person.testing %}<span class="pill pill-test">Testing</span>{% endif %}
+              </td>
+              <td>
+                {% if person.slot_id %}
+                <input type="hidden" name="slot-{{ person.slot_id }}" value="1">
+                <select name="shift-{{ person.slot_id }}" aria-label="Shift {{ person.nama }}">
+                  {% for shift in board.shifts %}
+                  <option value="{{ shift.id }}" {% if person.shift_id == shift.id %}selected{% endif %}>{{ shift.name }} · {{ shift.span_text }}</option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <select name="baru-{{ person.officer_id }}" aria-label="Shift {{ person.nama }}">
+                  <option value="">Tidak dijadwalkan</option>
+                  {% for shift in board.shifts %}
+                  <option value="{{ shift.id }}">{{ shift.name }} · {{ shift.span_text }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+              </td>
+              <td>
+                {% if person.slot_id %}
+                <select name="plan-{{ person.slot_id }}">
+                  <option value="">Kerja</option>
+                  <option value="OFF" {% if person.plan_value == 'OFF' %}selected{% endif %}>Off</option>
+                  {% for reason in person.reasons %}
+                  {% set choice = 'LEAVE' if reason.legacy else 'reason:' ~ reason.code %}
+                  <option value="{{ choice }}" {% if person.plan_value == choice %}selected{% endif %}>{{ reason.label }}</option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <select name="planb-{{ person.officer_id }}">
+                  <option value="">Kerja</option>
+                  <option value="OFF">Off</option>
+                  {% for reason in person.reasons %}
+                  {% if not reason.legacy %}
+                  <option value="reason:{{ reason.code }}">{{ reason.label }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+                {% endif %}
+              </td>
+              <td>{% if person.slot_id %}<input type="time" name="in-{{ person.slot_id }}" value="{{ person.clock_in }}">{% else %}<input type="time" name="inb-{{ person.officer_id }}">{% endif %}</td>
+              <td>{% if person.slot_id %}<input type="time" name="out-{{ person.slot_id }}" value="{{ person.clock_out }}">{% else %}<input type="time" name="outb-{{ person.officer_id }}">{% endif %}</td>
+              <td>
+                {% if person.code %}
+                <strong class="code-{{ person.code }}">{{ person.code_label }}</strong>
+                {% if person.overtime %}<span class="code-note">Lembur {{ person.overtime }} jam</span>{% endif %}
+                {% if person.below_min %}<span class="code-note">Kurang dari minimum {{ person.min_jam }} jam</span>{% endif %}
+                {% if person.source == 'banding' %}<span class="code-note">Dari banding</span>{% endif %}
+                {% if person.differs %}<span class="code-note">Hitung ulang: {{ person.calculated_label }}</span>{% endif %}
+                {% if person.pending %}<span class="code-note">Banding menunggu</span>{% endif %}
+                {% if person.slot_id and not person.pending %}
+                <a class="text-link" href="{{ url_for('absensi', lokasi=location_id, tanggal=tanggal, ajukan=person.slot_id) }}">Ajukan banding</a>
+                {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6">Tidak ada petugas yang ditempatkan di lokasi ini pada tanggal tersebut.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="savebar">
+        <p>Simpan sekali. Baris yang dipilih shiftnya masuk jadwal hari ini.</p>
+        <button class="action" type="submit">Simpan absensi</button>
+      </div>
+    </form>
+
+    {% if ajukan %}
+    <section class="panel">
+      <h2>Banding {{ ajukan.nama }}</h2>
+      <p class="lede">{{ ajukan.when }} · slot {{ ajukan.slot_no }} · kode sekarang {{ ajukan.code_label }}.</p>
+      <form method="post" action="{{ url_for('absensi') }}">
+        <input type="hidden" name="lokasi" value="{{ location_id }}">
+        <input type="hidden" name="tanggal" value="{{ tanggal }}">
+        <input type="hidden" name="aksi" value="banding">
+        <input type="hidden" name="slot" value="{{ ajukan.id }}">
+        <label>Kode yang diminta
+          <select name="kode" required>
+            {% for item in codes %}
+            <option value="{{ item.code }}" {% if item.code == 'OT' %}selected{% endif %}>{{ item.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Alasan
+          <input type="text" name="alasan" required placeholder="Misalnya absen tidak tercatat">
+        </label>
+        <label>Catatan
+          <input type="text" name="catatan" placeholder="Detail yang membantu atasan">
+        </label>
+        <button class="action" type="submit">Kirim banding</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('absensi') }}" class="panel inline-form">
+      <h2>Slot kedua</h2>
+      <p class="lede">Pakai ini kalau satu petugas mengisi dua shift di hari yang sama. Dua alpa tetap dihitung dua.</p>
+      <input type="hidden" name="lokasi" value="{{ location_id }}">
+      <input type="hidden" name="tanggal" value="{{ tanggal }}">
+      <input type="hidden" name="aksi" value="slot2">
+      <label>Shift slot kedua
+        <select name="shift">
+          {% for shift in board.shifts %}
+          <option value="{{ shift.id }}">{{ shift.name }} · {{ shift.span_text }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Petugas yang sudah dijadwalkan
+        <select name="petugas">
+          {% for person in board.people if person.slot_no == 1 %}
+          <option value="{{ person.officer_id }}">{{ person.nama }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="button" type="submit">Tambah slot</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

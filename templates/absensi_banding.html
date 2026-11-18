@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banding absensi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'absensi' %}
+  {% set tab = 'banding' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Absensi</p>
+    <h1>Banding</h1>
+    <p class="lede">Selama menunggu, kode asli tetap dipakai. Setuju mengganti kode hari itu. Tolak membiarkan kode asli.</p>
+    {% include "_absensi_nav.html" %}
+    {% if saved %}<p class="banner banner-ok" role="status">Keputusan tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Petugas</th>
+            <th>Hari</th>
+            <th>Dari</th>
+            <th>Menjadi</th>
+            <th>Alasan</th>
+            <th>Keputusan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in queue %}
+          <tr>
+            <td><strong>{{ row.nama }}</strong><span class="muted">{{ row.username }} · {{ row.lokasi }}</span></td>
+            <td>{{ row.when }}{% if row.slot_no > 1 %}<span class="muted">slot {{ row.slot_no }}</span>{% endif %}</td>
+            <td>{{ row.before_label }}</td>
+            <td>{{ row.requested_label }}</td>
+            <td>{{ row.reason }}{% if row.detail %}<span class="muted">{{ row.detail }}</span>{% endif %}<span class="muted">Pengajuan ke-{{ row.sequence }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('putus_banding', banding_id=row.id, lokasi=location_id, tanggal=tanggal) }}" class="inline-form">
+                <input type="text" name="catatan" placeholder="Catatan atasan">
+                <button class="action" type="submit" name="keputusan" value="setuju">Setujui</button>
+                <button class="button" type="submit" name="keputusan" value="tolak">Tolak</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6">Tidak ada banding yang menunggu di lokasi ini.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

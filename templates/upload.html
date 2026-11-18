@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payroll bulan ini</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set pay = 'bulan' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    {% include "_payroll.html" %}
+    {% if error %}
+    <p class="banner" role="alert">{{ error }}</p>
+    {% endif %}
+
+    {% if latest %}
+    <section class="hero">
+      <p class="kicker">Sedang dikerjakan</p>
+      <h1>{{ latest.alias }}</h1>
+      <p class="lede">
+        Diunggah {{ latest.when }}
+        {% if latest.period_start %}· {{ latest.period_start }} s/d {{ latest.period_end }}{% elif month %}· {{ month.period_start }} s/d {{ month.period_end }}{% endif %}.
+        Lanjutkan dari angka, atau unggah tarikan yang lebih baru.
+      </p>
+      <div class="hero-actions">
+        <a class="action" href="{{ url_for('view_hitung', sid=latest.id) }}">Buka tabel hasil hitung</a>
+        <a class="button-ghost" href="{{ url_for('view_transfer', sid=latest.id) }}">Buka tabel transfer</a>
+        <a class="button-ghost" href="{{ url_for('view_final', sid=latest.id) }}">Buka ringkasan akhir</a>
+      </div>
+    </section>
+
+    {% if month and (not latest.period_start or latest.period_start == month.period_start) %}
+    <section class="stats">
+      <article>
+        <p>{{ tip('Gaji HRIS') }}</p>
+        <strong>{{ month.hris_total | rp }}</strong>
+        <span>{{ month.officer_count }} petugas</span>
+      </article>
+      <article>
+        <p>{{ tip('Hasil hitung') }}</p>
+        <strong>{{ month.hitung_total | rp }}</strong>
+        <span>Dari file yang disimpan</span>
+      </article>
+      <article>
+        <p>{{ tip('Petugas baru') }} / {{ tip('Resign') }}</p>
+        <strong>{{ month.baru_count }} / {{ month.resign_count }}</strong>
+        <span>{{ tip('Banding') }} {{ month.appeal_count }}</span>
+      </article>
+    </section>
+    {% endif %}
+
+    {% set sid = latest.id %}
+    {% include "_grids.html" %}
+    {% endif %}
+
+    <div class="home-grid">
+      <section class="panel">
+        <h2>{% if latest %}Unggah file baru{% else %}Mulai dari tarikan HRIS{% endif %}</h2>
+        <p class="lede">Pakai Excel hasil tarikan. Nama file dan jam unggah tersimpan, jadi file yang pernah dipakai tetap bisa dibedakan.</p>
+        <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+          <label class="drop" for="source">
+            <span class="drop-kicker">Wajib</span>
+            <span class="drop-title">Tarikan HRIS bulan ini</span>
+            <span class="drop-file" id="source-name">Belum ada file</span>
+            <input id="source" name="source" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+          </label>
+          <label class="drop drop-optional" for="prior">
+            <span class="drop-kicker">Kalau sudah ada</span>
+            <span class="drop-title">Payroll final bulan lalu</span>
+            <span class="drop-file" id="prior-name">Belum diunggah. Perbandingan orang per orang muncul setelah file ini ada.</span>
+            <input id="prior" name="prior" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+          <button class="action" type="submit">Analisis</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>File sebelumnya</h2>
+        {% if uploads|length > 1 %}
+        <ul class="file-rows">
+          {% for item in uploads[1:] %}
+          <li>
+            <div>
+              <a href="{{ url_for('report', sid=item.id) }}">{{ item.alias }}</a>
+              <span class="muted">{{ item.when }}</span>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if upload_count > uploads|length %}
+        <p class="muted">{{ upload_count - uploads|length }} file lain ada di riwayat.</p>
+        {% endif %}
+        {% elif uploads %}
+        <p class="lede">File yang sedang dikerjakan ada di atas. Unggahan yang lebih lama muncul di sini.</p>
+        {% else %}
+        <p class="lede">Belum ada file. Setelah dianalisis, file muncul di sini beserta jam unggahnya.</p>
+        {% endif %}
+        <p><a class="text-link" href="{{ url_for('kegiatan') }}">Buka riwayat</a></p>
+      </section>
+    </div>
+  </main>
+  <script>
+    function showName(inputId, labelId) {
+      const input = document.getElementById(inputId);
+      const label = document.getElementById(labelId);
+      input.addEventListener("change", function () {
+        label.textContent = input.files.length ? input.files[0].name : "Belum ada file";
+      });
+    }
+    showName("source", "source-name");
+    showName("prior", "prior-name");
+  </script>
+</body>
+</html>

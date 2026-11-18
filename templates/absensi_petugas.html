@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Petugas absensi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'absensi' %}
+  {% set tab = 'petugas' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    <p class="kicker">Absensi</p>
+    <h1>Petugas</h1>
+    <p class="lede">Satu orang punya satu username. Pindah kantor artinya penempatan baru di lokasi lain, bukan petugas baru. Petugas dari payroll yang masih aktif sudah disalin.</p>
+    {% include "_absensi_nav.html" %}
+    {% if saved %}<p class="banner banner-ok" role="status">Petugas tersimpan dan bisa dijadwalkan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+    <section class="panel">
+      <h2>Tambah penempatan</h2>
+      <form method="post" action="{{ url_for('absensi_petugas') }}">
+        <label>Nama<input type="text" name="nama" required></label>
+        <label>Username<input type="text" name="username" required></label>
+        <label>Lokasi
+          <select name="lokasi" required>
+            {% for row in locations %}
+            <option value="{{ row.id }}" {% if row.id == location_id %}selected{% endif %}>{{ row.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Mulai bekerja<input type="date" name="mulai" value="{{ tanggal }}" required></label>
+        <label class="flag-checks"><span><input type="checkbox" name="testing" value="1"> Akun testing</span></label>
+        <button class="action" type="submit">Simpan petugas</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

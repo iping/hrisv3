@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Petugas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=46">
+</head>
+<body class="grid-page">
+  {% set nav = 'petugas' %}
+  {% include "_nav.html" %}
+  <main class="wrap wide">
+    <div class="page-head">
+      <div>
+        <p class="kicker">Petugas</p>
+        <h1>Daftar officer</h1>
+        <p class="lede">Satu baris satu petugas. Klik judul kolom untuk mengurutkan. Ubah membuka profil di samping, tanpa pindah halaman.</p>
+      </div>
+    </div>
+    <nav class="section-switch" aria-label="Tahap karyawan">
+      <a href="{{ url_for('data_karyawan', tab='daftar') }}" {% if tab == 'daftar' %}aria-current="page"{% endif %}>Daftar</a>
+      <a href="{{ url_for('data_karyawan', tab='pengguna') }}" {% if tab == 'pengguna' %}aria-current="page"{% endif %}>Pengguna baru</a>
+      <a href="{{ url_for('data_karyawan', tab='daftar-masuk') }}" {% if tab == 'daftar-masuk' %}aria-current="page"{% endif %}>Daftar masuk</a>
+      <a href="{{ url_for('data_karyawan', tab='setuju') }}" {% if tab == 'setuju' %}aria-current="page"{% endif %}>Persetujuan{% if waiting %} · {{ waiting|length }}{% endif %}</a>
+    </nav>
+    {% if saved %}<p class="banner banner-ok" role="status">Tersimpan.</p>{% endif %}
+    {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
+
+    {% if tab == 'pengguna' %}
+    <section class="panel">
+      <h2>Pengguna baru</h2>
+      <p class="lede">Cukup nama dan username. Status awal Onboard: register belum disetujui, dan belum masuk absensi.</p>
+      <form method="post" action="{{ url_for('data_pengguna') }}">
+        <label>Nama<input type="text" name="nama" required></label>
+        <label>Username<input type="text" name="username" required></label>
+        <button class="action" type="submit">Buat pengguna</button>
+      </form>
+    </section>
+    {% elif tab == 'daftar-masuk' %}
+    <section class="panel">
+      <h2>Daftar masuk</h2>
+      {% if fresh %}
+      <form method="post" action="{{ url_for('data_daftar') }}">
+        <label>Karyawan
+          <select name="petugas" required>
+            {% for row in fresh %}
+            <option value="{{ row.id }}">{{ row.nama }} · {{ row.username }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Lokasi
+          <select name="lokasi" required>
+            {% for row in locations if row.active %}
+            <option value="{{ row.id }}">{{ row.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Tanggal masuk<input type="date" name="masuk" required></label>
+        <label>Gaji pokok<input type="text" name="gaji" inputmode="numeric" placeholder="4500000" required></label>
+        <p class="muted">Setelah disetujui, statusnya Approved. Absensi baru dibuka saat profil diubah ke Aktif, OJT, atau Pass OJT.</p>
+        <button class="action" type="submit">Kirim untuk persetujuan</button>
+      </form>
+      {% else %}
+      <p class="lede">Tidak ada pengguna yang menunggu didaftarkan. Buat pengguna baru dulu.</p>
+      {% endif %}
+    </section>
+    {% elif tab == 'setuju' %}
+    <div class="sheet-scroll">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th class="rowno"></th>
+            <th class="sticky">Karyawan</th>
+            <th>Lokasi</th>
+            <th>Masuk</th>
+            <th class="num">Gaji pokok</th>
+            <th>Status</th>
+            <th>Keputusan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in waiting %}
+          <tr>
+            <td class="rowno">{{ loop.index }}</td>
+            <td class="sticky name"><strong>{{ row.nama }}</strong><span class="muted">{{ row.username }} · {{ row.id }}</span></td>
+            <td>{{ row.lokasi or "—" }}</td>
+            <td>{{ row.joined or "—" }}</td>
+            <td class="num">{{ row.gaji_pokok|rp }}</td>
+            <td class="status"><span class="pill pill-status pill-{{ row.account_code }}">{{ row.status_label }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('data_setuju', officer_id=row.id) }}" class="inline-form">
+                <button class="action" type="submit" name="keputusan" value="setuju">Setujui</button>
+                <button class="button" type="submit" name="keputusan" value="tolak">Tolak</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td class="rowno"></td><td colspan="6">Tidak ada pendaftaran yang menunggu.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    {% set advanced = filters.lokasi or filters.lokasi_kedua or filters.posisi or filters.masuk_dari or filters.masuk_sampai or filters.resign or filters.resign_dari or filters.resign_sampai or filters.gaji_dari or filters.gaji_sampai or filters.bpjs_kes_dari or filters.bpjs_kes_sampai or filters.bpjs_tk_dari or filters.bpjs_tk_sampai %}
+    <form method="get" class="officer-filter" action="{{ url_for('data_karyawan') }}">
+      <input type="hidden" name="tab" value="daftar">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <input type="hidden" name="arah" value="{{ arah }}">
+      <div class="tools officer-tools">
+        <label>Cari<input type="search" name="q" value="{{ query }}" placeholder="Nama, username, atau ID"></label>
+        <label>Status
+          <select name="status">
+            <option value="">Semua</option>
+            {% for code, name, help in status_help %}
+            <option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="action" type="submit">Tampilkan</button>
+        {% if query or status or advanced %}<a class="text-link filter-clear" href="{{ url_for('data_karyawan', tab='daftar', sort=sort, arah=arah) }}">Hapus saringan</a>{% endif %}
+        <p class="muted">{{ people|length }} petugas</p>
+      </div>
+      <details class="advanced-filter" {% if advanced %}open{% endif %}>
+        <summary>Saringan lanjutan</summary>
+        <div class="filter-grid">
+          <label>Lokasi utama
+            <select name="lokasi">
+              <option value="">Semua</option>
+              {% for row in locations %}
+              <option value="{{ row.id }}" {% if filters.lokasi == row.id|string %}selected{% endif %}>{{ row.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Lokasi kedua
+            <select name="lokasi_kedua">
+              <option value="">Semua</option>
+              <option value="kosong" {% if filters.lokasi_kedua == 'kosong' %}selected{% endif %}>Tidak ada</option>
+              {% for row in locations %}
+              <option value="{{ row.id }}" {% if filters.lokasi_kedua == row.id|string %}selected{% endif %}>{{ row.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Posisi
+            <select name="posisi">
+              <option value="">Semua</option>
+              <option value="kosong" {% if filters.posisi == 'kosong' %}selected{% endif %}>Belum diisi</option>
+              {% for code, name in positions %}
+              <option value="{{ code }}" {% if filters.posisi == code %}selected{% endif %}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Resign
+            <select name="resign">
+              <option value="">Semua</option>
+              <option value="ada" {% if filters.resign == 'ada' %}selected{% endif %}>Sudah ada tanggal</option>
+              <option value="belum" {% if filters.resign == 'belum' %}selected{% endif %}>Belum resign</option>
+            </select>
+          </label>
+          <label>Masuk dari<input type="date" name="masuk_dari" value="{{ filters.masuk_dari }}"></label>
+          <label>Masuk sampai<input type="date" name="masuk_sampai" value="{{ filters.masuk_sampai }}"></label>
+          <label>Resign dari<input type="date" name="resign_dari" value="{{ filters.resign_dari }}"></label>
+          <label>Resign sampai<input type="date" name="resign_sampai" value="{{ filters.resign_sampai }}"></label>
+          <label>Gaji pokok dari<input type="text" name="gaji_dari" inputmode="numeric" value="{{ filters.gaji_dari }}" placeholder="0"></label>
+          <label>Gaji pokok sampai<input type="text" name="gaji_sampai" inputmode="numeric" value="{{ filters.gaji_sampai }}" placeholder="0"></label>
+          <label>BPJS Kesehatan dari<input type="text" name="bpjs_kes_dari" inputmode="numeric" value="{{ filters.bpjs_kes_dari }}" placeholder="0"></label>
+          <label>BPJS Kesehatan sampai<input type="text" name="bpjs_kes_sampai" inputmode="numeric" value="{{ filters.bpjs_kes_sampai }}" placeholder="0"></label>
+          <label>BPJS Ketenagakerjaan dari<input type="text" name="bpjs_tk_dari" inputmode="numeric" value="{{ filters.bpjs_tk_dari }}" placeholder="0"></label>
+          <label>BPJS Ketenagakerjaan sampai<input type="text" name="bpjs_tk_sampai" inputmode="numeric" value="{{ filters.bpjs_tk_sampai }}" placeholder="0"></label>
+        </div>
+      </details>
+    </form>
+    <details class="status-fold">
+      <summary>Arti status</summary>
+      <ul class="status-legend">
+        {% for code, name, help in status_help %}
+        <li><strong>{{ name }}.</strong> {{ help }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    <div class="sheet-scroll">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th class="rowno"></th>
+            {% macro sort_col(key, label, extra='') %}
+            {% set next = 'turun' if sort == key and arah == 'naik' else 'naik' %}
+            <th {% if extra %}class="{{ extra }}"{% endif %} {% if sort == key %}aria-sort="{{ 'ascending' if arah == 'naik' else 'descending' }}"{% endif %}>
+              <a class="sort-link{% if sort == key %} is-on{% endif %}" href="{{ url_for('data_karyawan', tab='daftar', q=query, status=status, lokasi=filters.lokasi, lokasi_kedua=filters.lokasi_kedua, posisi=filters.posisi, masuk_dari=filters.masuk_dari, masuk_sampai=filters.masuk_sampai, resign=filters.resign, resign_dari=filters.resign_dari, resign_sampai=filters.resign_sampai, gaji_dari=filters.gaji_dari, gaji_sampai=filters.gaji_sampai, bpjs_kes_dari=filters.bpjs_kes_dari, bpjs_kes_sampai=filters.bpjs_kes_sampai, bpjs_tk_dari=filters.bpjs_tk_dari, bpjs_tk_sampai=filters.bpjs_tk_sampai, sort=key, arah=next) }}">{{ label }}{% if sort == key %}<span class="sort-mark">{% if arah == 'turun' %}↓{% else %}↑{% endif %}</span>{% endif %}</a>
+            </th>
+            {% endmacro %}
+            {{ sort_col('nama', 'Petugas', 'sticky') }}
+            {{ sort_col('lokasi', 'Lokasi utama', 'col-start') }}
+            {{ sort_col('kedua', 'Lokasi kedua') }}
+            {{ sort_col('posisi', 'Posisi', 'col-start') }}
+            {{ sort_col('status', 'Status') }}
+            {{ sort_col('masuk', 'Masuk') }}
+            {{ sort_col('resign', 'Resign') }}
+            {{ sort_col('masa', 'Masa kerja') }}
+            {{ sort_col('gaji', 'Gaji pokok', 'num col-start') }}
+            {{ sort_col('bpjs_kes', 'BPJS Kes', 'num') }}
+            {{ sort_col('bpjs_tk', 'BPJS TK', 'num') }}
+            <th class="pin-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in people %}
+          <tr data-officer="{{ row.id }}">
+            <td class="rowno">{{ loop.index }}</td>
+            <td class="sticky name">
+              <button type="button" class="text-link row-open" data-officer="{{ row.id }}" data-field="nama">{{ row.nama }}</button>
+              <span class="muted"><span data-field="user">{{ row.username }}</span> · {{ row.id }}</span>
+            </td>
+            <td class="col-start" data-field="lokasi">{{ row.lokasi or "—" }}</td>
+            <td data-field="lokasi_kedua">{{ row.lokasi_kedua or "—" }}</td>
+            <td class="col-start" data-field="posisi">{{ row.posisi_label or "—" }}</td>
+            <td class="status" data-field="status"><span class="pill pill-status pill-{{ row.account_code }}">{{ row.status_label }}</span>{% if row.new_joiner %}<span class="pill pill-baru">New Joiner</span>{% endif %}{% if row.ojt_menunggu %}<span class="pill pill-wait">Menunggu OJT</span>{% endif %}</td>
+            <td data-field="joined">{{ row.joined or "—" }}</td>
+            <td data-field="resigned">{{ row.resigned or "—" }}</td>
+            <td class="masa" data-field="masa">{% if row.masa_hari is not none %}<span class="masa-days">{{ row.masa_hari_label }}</span><span class="muted">{{ row.masa_tahun_label }}</span>{% else %}—{% endif %}</td>
+            <td class="num col-start" data-field="gaji">{{ row.basic_salary|rp }}</td>
+            <td class="num" data-field="bpjs_kes">{{ row.bpjs_kesehatan|rp }}</td>
+            <td class="num" data-field="bpjs_tk">{{ row.bpjs_ketenagakerjaan|rp }}</td>
+            <td class="pin-right"><button type="button" class="row-edit" data-officer="{{ row.id }}">Ubah</button></td>
+          </tr>
+          {% else %}
+          <tr><td class="rowno"></td><td colspan="12">Tidak ada petugas pada saringan ini.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </main>
+  <div class="drawer-root" hidden>
+    <button type="button" class="drawer-backdrop" data-drawer-close aria-label="Tutup profil"></button>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1">
+      <header class="drawer-head">
+        <h2 id="drawer-title">Profil</h2>
+        <button type="button" class="ghost" data-drawer-close>Tutup</button>
+      </header>
+      <div class="drawer-body"></div>
+    </aside>
+  </div>
+  <script>
+    (function () {
+      var root = document.querySelector(".drawer-root");
+      var panel = root.querySelector(".drawer");
+      var body = root.querySelector(".drawer-body");
+      var title = document.getElementById("drawer-title");
+      var opener = null;
+      var ticket = 0;
+
+      function closeDrawer() {
+        ticket += 1;
+        root.hidden = true;
+        body.innerHTML = "";
+        document.body.classList.remove("drawer-open");
+        if (opener) opener.focus();
+      }
+
+      function paintRow(row) {
+        var tr = document.querySelector('tr[data-officer="' + row.id + '"]');
+        if (!tr) return;
+        var fields = {
+          nama: row.nama,
+          user: row.username,
+          lokasi: row.lokasi,
+          lokasi_kedua: row.lokasi_kedua,
+          posisi: row.posisi,
+          joined: row.joined,
+          resigned: row.resigned,
+          gaji: row.gaji,
+          bpjs_kes: row.bpjs_kes,
+          bpjs_tk: row.bpjs_tk
+        };
+        Object.keys(fields).forEach(function (key) {
+          var cell = tr.querySelector('[data-field="' + key + '"]');
+          if (cell) cell.textContent = fields[key];
+        });
+        var masa = tr.querySelector('[data-field="masa"]');
+        if (masa) {
+          masa.textContent = "";
+          if (row.masa_hari === null || row.masa_hari === undefined) {
+            masa.textContent = "—";
+          } else {
+            var days = document.createElement("span");
+            days.className = "masa-days";
+            days.textContent = row.masa_hari_label;
+            var years = document.createElement("span");
+            years.className = "muted";
+            years.textContent = row.masa_tahun_label;
+            masa.append(days, years);
+          }
+        }
+        var status = tr.querySelector('[data-field="status"]');
+        if (!status) return;
+        status.textContent = "";
+        var tag = document.createElement("span");
+        tag.className = "pill pill-status pill-" + (row.account_code || "off");
+        tag.textContent = row.status_label;
+        status.append(tag);
+        if (row.new_joiner) {
+          var pill = document.createElement("span");
+          pill.className = "pill pill-baru";
+          pill.textContent = "New Joiner";
+          status.append(pill);
+        }
+        if (row.ojt_menunggu) {
+          var note = document.createElement("span");
+          note.className = "pill pill-wait";
+          note.textContent = "Menunggu OJT";
+          status.append(note);
+        }
+      }
+
+      function show(html) {
+        body.innerHTML = html;
+        var heading = body.querySelector("h1");
+        title.textContent = heading ? heading.textContent : "Profil";
+        var sheet = body.querySelector(".drawer-sheet");
+        var blob = body.querySelector("#drawer-row");
+        if (sheet && blob && sheet.getAttribute("data-saved") === "1") {
+          paintRow(JSON.parse(blob.textContent));
+        }
+        syncWorkStatusDate(body);
+        panel.focus();
+      }
+
+      function syncWorkStatusDate(root) {
+        var select = root.querySelector('select[name="status"]');
+        var blob = root.querySelector("#work-status-dates");
+        if (!select || !blob) return;
+        var dates = JSON.parse(blob.textContent);
+        var item = dates.find(function (entry) { return entry.code === select.value; });
+        var name = root.querySelector("#status-date-name");
+        var input = root.querySelector('input[name="tanggal"]');
+        var help = root.querySelector("#status-help");
+        if (item) {
+          if (name) name.textContent = item.label;
+          if (input) input.value = item.value || "";
+          if (help) help.textContent = item.help || "";
+        }
+        var ojtStart = root.querySelector("#ojt-start-field");
+        if (ojtStart) ojtStart.hidden = select.value === "ojt";
+      }
+
+      function load(url, options) {
+        var mine = ++ticket;
+        body.innerHTML = options ? '<p class="muted">Menyimpan…</p>' : '<p class="muted">Membuka profil…</p>';
+        fetch(url, options).then(function (response) {
+          if (mine !== ticket) return;
+          if (!response.ok) throw new Error("gagal");
+          return response.text();
+        }).then(function (html) {
+          if (mine !== ticket || html == null) return;
+          show(html);
+        }).catch(function () {
+          if (mine !== ticket) return;
+          body.innerHTML = '<p class="banner" role="alert">Profil tidak bisa dibuka.</p>';
+        });
+      }
+
+      function openDrawer(id, button) {
+        opener = button;
+        root.hidden = false;
+        document.body.classList.add("drawer-open");
+        title.textContent = "Profil";
+        load("/data/karyawan/" + id + "?panel=1");
+      }
+
+      document.addEventListener("click", function (event) {
+        var open = event.target.closest(".row-open, .row-edit");
+        if (open) {
+          openDrawer(open.getAttribute("data-officer"), open);
+          return;
+        }
+        if (event.target.closest("[data-drawer-close]")) {
+          closeDrawer();
+          return;
+        }
+        var link = event.target.closest(".drawer-body a");
+        if (!link) return;
+        var url = new URL(link.href, window.location.origin);
+        if (url.searchParams.get("panel") !== "1") return;
+        event.preventDefault();
+        load(url.pathname + url.search);
+      });
+
+      body.addEventListener("change", function (event) {
+        if (event.target && event.target.name === "status") syncWorkStatusDate(body);
+      });
+
+      body.addEventListener("submit", function (event) {
+        var form = event.target;
+        if (!form || form.tagName !== "FORM") return;
+        event.preventDefault();
+        if (typeof form.reportValidity === "function" && !form.reportValidity()) return;
+        var data = new FormData(form);
+        if (event.submitter && event.submitter.name) data.append(event.submitter.name, event.submitter.value);
+        load(form.action, { method: "POST", body: data });
+      });
+
+      var filterForm = document.querySelector(".officer-filter");
+      if (filterForm) {
+        filterForm.addEventListener("submit", function () {
+          Array.prototype.forEach.call(filterForm.elements, function (field) {
+            if (!field.name || field.type === "submit") return;
+            if (field.name === "tab" || field.name === "sort" || field.name === "arah") return;
+            if (!String(field.value || "").trim()) field.disabled = true;
+          });
+        });
+      }
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !root.hidden) closeDrawer();
+      });
+    }());
+  </script>
+</body>
+</html>

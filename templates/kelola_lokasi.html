@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+</head>
+<body>
+  {% set nav = 'payroll' %}
+  {% set pay = 'lokasi' %}
+  {% include "_nav.html" %}
+  <main class="wrap">
+    {% include "_payroll.html" %}
+    <p class="kicker"><a class="back" href="{{ url_for('kelola') }}">Semua lokasi</a></p>
+    <div class="page-head">
+      <div>
+        <h1>{{ page.name }}</h1>
+        <p class="lede">
+          <span class="pill {{ 'pill-on' if page.active else 'pill-off' }}">{{ 'Ikut payroll' if page.active else 'Tidak ikut payroll' }}</span>
+          {{ page.people|length }} petugas · {{ page.paid | rp }}
+        </p>
+      </div>
+      <form method="post" action="{{ url_for('save_kelola') }}">
+        <input type="hidden" name="location" value="{{ page.name }}">
+        <input type="hidden" name="back" value="detail">
+        {% if page.active %}
+        <button class="ghost" type="submit" name="set_active" value="0">Matikan lokasi ini</button>
+        {% else %}
+        <button class="action" type="submit" name="set_active" value="1">Aktifkan lokasi ini</button>
+        {% endif %}
+      </form>
+    </div>
+    {% if saved %}
+    <p class="banner banner-ok" role="status">Perubahan tersimpan. Analisis berikutnya memakai pilihan ini.</p>
+    {% endif %}
+    <section class="stats">
+      <article>
+        <p>Aktif</p>
+        <strong>{{ page.people|length - page.resign_count - page.baru_count }}</strong>
+      </article>
+      <article>
+        <p>Resign</p>
+        <strong>{{ page.resign_count }}</strong>
+      </article>
+      <article>
+        <p>Petugas baru</p>
+        <strong>{{ page.baru_count }}</strong>
+      </article>
+    </section>
+
+    {% if not page.people %}
+    <p class="lede">Belum ada petugas di lokasi ini.</p>
+    {% else %}
+    <form action="{{ url_for('save_kelola') }}" method="post">
+      <input type="hidden" name="lokasi" value="{{ page.name }}">
+      <label class="field kode-field">Kode transfer
+        <input name="kode" value="{{ page.kode }}" placeholder="Contoh: Aspen" aria-label="Kode transfer {{ page.name }}">
+      </label>
+      <p class="muted">Kode ini masuk ke remark file bank, misalnya Aspen Oct26. Tersimpan saat Simpan petugas.</p>
+      <div class="tools">
+        <input id="q" type="search" placeholder="Cari username, nama, atau rekening" aria-label="Cari petugas">
+        <select id="f" aria-label="Saring status">
+          <option value="">Semua status</option>
+          <option value="resign">Resign</option>
+          <option value="baru">Baru</option>
+          <option value="aktif">Aktif</option>
+          <option value="norek">Belum ada rekening</option>
+        </select>
+      </div>
+      <p class="muted" id="shown">{{ page.people|length }} petugas</p>
+      <div class="table-wrap">
+        <table class="people">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Nama</th>
+              <th>Rekening</th>
+              <th>Status</th>
+              <th>Tanggal</th>
+              <th>Catatan</th>
+              <th>Gaji HRIS</th>
+            </tr>
+          </thead>
+          <tbody id="people">
+            {% for row in page.people %}
+            <tr data-person="{{ row.username }} {{ row.nama }} {{ row.rekening }} {{ row.nama_rekening }}" data-bank="{{ '1' if row.punya_rekening else '0' }}">
+              <td data-label="Username">
+                {% if row.username %}
+                <a class="text-link user-id" href="{{ url_for('kelola_profil', lokasi=page.name, username=row.username) }}">{{ row.username }}</a>
+                <br><a class="text-link" href="{{ url_for('kelola_absensi', lokasi=page.name, username=row.username) }}">Absensi{% if row.absensi %} · hadir {{ row.hadir }}{% if row.alpa %} · alpa {{ row.alpa }}{% endif %}{% if row.telat %} · telat {{ row.telat }}{% endif %}{% endif %}</a>
+                {% else %}
+                <span class="muted">Tanpa username</span>
+                {% endif %}
+                <input type="hidden" name="pkey" value="{{ row.key }}">
+              </td>
+              <td data-label="Nama">
+                {{ row.nama }}
+                {% if row.saran %}<br><span class="muted">{{ row.saran }}</span>{% endif %}
+              </td>
+              <td data-label="Rekening">
+                {% if row.punya_rekening %}
+                <a class="account" href="{{ url_for('kelola_profil', lokasi=page.name, username=row.username) }}">
+                  <strong>{{ row.rekening }}</strong>
+                  <span>{{ row.bank or "Bank" }}</span>
+                </a>
+                {% if row.nama_rekening and row.nama_rekening|lower != row.nama|lower %}
+                <span class="muted">Nama rekening {{ row.nama_rekening }}</span>
+                {% endif %}
+                {% elif row.username %}
+                <a class="text-link" href="{{ url_for('kelola_profil', lokasi=page.name, username=row.username) }}">Isi rekening</a>
+                {% else %}
+                <span class="muted">Belum ada</span>
+                {% endif %}
+              </td>
+              <td data-label="Status">
+                <select name="pstatus" aria-label="Status {{ row.nama }}">
+                  <option value="aktif" {% if row.status == 'aktif' %}selected{% endif %}>Aktif</option>
+                  <option value="resign" {% if row.status == 'resign' %}selected{% endif %}>Resign</option>
+                  <option value="baru" {% if row.status == 'baru' %}selected{% endif %}>Baru</option>
+                </select>
+              </td>
+              <td data-label="Tanggal"><input name="pdate" type="date" value="{{ row.tanggal }}" aria-label="Tanggal {{ row.nama }}"></td>
+              <td data-label="Catatan"><input name="pnote" type="text" value="{{ row.catatan }}" placeholder="Catatan" aria-label="Catatan {{ row.nama }}"></td>
+              <td class="num" data-label="Gaji HRIS">{{ row.paid | rp }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p id="empty" class="lede" hidden>Tidak ada petugas yang cocok.</p>
+      <div class="savebar">
+        <p class="muted">Resign dan petugas baru tetap di slip, supaya prorate bisa dicek.</p>
+        <button class="action" type="submit">Simpan petugas</button>
+      </div>
+    </form>
+    {% endif %}
+  </main>
+  <script>
+    const query = document.getElementById("q");
+    const filter = document.getElementById("f");
+    const shown = document.getElementById("shown");
+    const empty = document.getElementById("empty");
+    function applyFilter() {
+      if (!query) return;
+      const text = query.value.toLowerCase().trim();
+      const status = filter.value;
+      let visible = 0;
+      document.querySelectorAll("#people tr").forEach(function (row) {
+        const select = row.querySelector("select");
+        const matchesText = !text || row.dataset.person.toLowerCase().indexOf(text) !== -1;
+        const matchesStatus = !status || (status === "norek" ? row.dataset.bank === "0" : select.value === status);
+        const show = matchesText && matchesStatus;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (shown) shown.textContent = visible + " petugas";
+      if (empty) empty.hidden = visible !== 0;
+    }
+    if (query) {
+      query.addEventListener("input", applyFilter);
+      filter.addEventListener("change", applyFilter);
+    }
+  </script>
+</body>
+</html>
