@@ -33,13 +33,15 @@
   <p class="muted"><strong>Catatan syarat:</strong> {{ payroll_info.note }}</p>
   {% endif %}
 
-  <h3 class="drawer-sub">Log perubahan</h3>
+  {% include "_payroll_attendance_activity.html" %}
+
+  <h3 class="drawer-sub">Log perubahan payroll</h3>
   {% if payroll_info.log %}
   <ul class="pay-log">
     {% for row in payroll_info.log %}
     <li>
       <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
-      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+      <span class="muted">disimpan {{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
     </li>
     {% endfor %}
   </ul>

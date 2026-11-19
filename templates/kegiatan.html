@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Riwayat</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=48">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'riwayat' %}
@@ -95,8 +95,8 @@
     </section>
 
     {% if activities %}
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead>
           <tr>
             <th>Waktu</th>

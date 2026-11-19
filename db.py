@@ -23,6 +23,16 @@ TERMS = [
     ("Hasil hitung", "Gaji yang dihitung ulang di sini. Lembur mengikuti durasi, denda alpa dari gaji pokok dibagi 25."),
     ("Selisih", "Hasil hitung dikurangi gaji HRIS. Angka ini dicek sebelum transfer."),
     ("Lembur", "Fee dari durasi: 1–4 jam Rp 50.000, 5–8 jam Rp 75.000, 9 jam atau lebih Rp 100.000."),
+    (
+        "Cocok",
+        "Fee Dihitung sama dengan Fee HRIS (selisih di bawah Rp 1). Beda berarti angka lembur di file HRIS tidak sama dengan hasil hitung dari durasi.",
+    ),
+    (
+        "Masuk slip",
+        "Ya = baris lembur ini sudah terikat ke petugas di Slip Gaji (lokasi + username cocok). Tidak = lembur ada di sheet Overtime tapi tidak ketemu petugas di payroll, jadi belum masuk gaji dihitung.",
+    ),
+    ("Fee HRIS", "Nominal lembur dari file tarikan HRIS (kolom Overtime Fee)."),
+    ("Fee Dihitung", "Nominal lembur yang dihitung ulang dari durasi: 1–4 jam Rp 50.000, 5–8 jam Rp 75.000, 9 jam atau lebih Rp 100.000."),
     ("Denda alpa", "Potongan karena tidak hadir tanpa izin. Gaji pokok dibagi 25, dikali jumlah status A."),
     ("Alpa", "Tidak hadir tanpa izin. Kode di absensi: A."),
     ("Terlambat", "Datang lewat dari jadwal. Kode di absensi: L."),
@@ -52,6 +62,18 @@ TERMS = [
     (
         "Normal Case",
         "Petugas yang angkanya sudah cocok dan tidak perlu dicek lagi: tanpa selisih, tanpa lembur, tanpa banding, tanpa potongan/deposit/denda, dan bukan New Joiner.",
+    ),
+    (
+        "Hari Kerja",
+        "Jumlah hari hadir di periode ini dari sheet Attendance: kode OT (tepat waktu) + L (terlambat).",
+    ),
+    (
+        "Hari Off",
+        "Jumlah hari Off di periode ini dari sheet Attendance (kode OFF).",
+    ),
+    (
+        "Minimum hari hadir",
+        "Batas hari hadir per bulan dari profil petugas, atau dari lokasi kalau petugas ikut lokasi. Kalau belum diatur, dipakai 10 hari. Di bawah batas = kehadiran kurang.",
     ),
 ]
 
@@ -394,8 +416,12 @@ def ensure_schema(db: Conn) -> None:
             field_label TEXT NOT NULL DEFAULT '',
             before_text TEXT NOT NULL DEFAULT '',
             after_text TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT '',
+            detail TEXT NOT NULL DEFAULT '',
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+        ALTER TABLE attendance_change_log ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT '';
+        ALTER TABLE attendance_change_log ADD COLUMN IF NOT EXISTS detail TEXT NOT NULL DEFAULT '';
         CREATE TABLE IF NOT EXISTS attendance_location_log (
             id SERIAL PRIMARY KEY,
             location_id INTEGER NOT NULL REFERENCES attendance_locations(id) ON DELETE CASCADE,

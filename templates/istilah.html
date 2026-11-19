@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Istilah</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'bantuan' %}
@@ -13,8 +13,8 @@
     <p class="kicker">Arti kata yang dipakai di layar</p>
     <h1>Bantuan</h1>
     <p class="lede">Penjelasan ini diambil dari lembar Info &amp; Legenda di file HRIS, lalu ditulis dengan bahasa yang dipakai di aplikasi. Di halaman lain, kata bergaris putus-putus bisa disentuh untuk melihat arti yang sama.</p>
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead>
           <tr>
             <th>Istilah</th>

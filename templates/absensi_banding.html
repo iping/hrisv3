@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Banding absensi</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'absensi' %}
@@ -17,8 +17,8 @@
     {% include "_absensi_nav.html" %}
     {% if saved %}<p class="banner banner-ok" role="status">Keputusan tersimpan.</p>{% endif %}
     {% if salah %}<p class="banner" role="alert">{{ salah }}</p>{% endif %}
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead>
           <tr>
             <th>Petugas</th>

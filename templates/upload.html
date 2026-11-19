@@ -4,51 +4,64 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Payroll bulan ini</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=74">
 </head>
-<body>
+<body class="grid-page">
   {% set nav = 'payroll' %}
   {% set pay = 'bulan' %}
+  {% set wide = true %}
   {% include "_nav.html" %}
-  <main class="wrap">
+  <main class="wrap wide">
+    <div class="page-head compare-head">
+      <div>
+        <p class="kicker">Payroll bulan ini</p>
+        <h1>{% if latest %}{{ latest.alias }}{% else %}Unggah tarikan HRIS{% endif %}</h1>
+        <p class="lede">
+          {% if latest %}
+          Diunggah {{ latest.when }}{% if latest.period_start %} · {{ latest.period_start }} s/d {{ latest.period_end }}{% elif month %} · {{ month.period_start }} s/d {{ month.period_end }}{% endif %}.
+          Mulai dari Cek unggahan, lalu lanjut ke hasil hitung — alur yang sama seperti review banding.
+          {% else %}
+          Unggah Excel tarikan HRIS untuk memulai payroll. Setelah file masuk, banding unggahan dan tabel hitung siap dibuka.
+          {% endif %}
+        </p>
+      </div>
+      {% if latest %}
+      <div class="page-actions">
+        <a class="action" href="{{ url_for('banding_unggah', unggah=latest.id) }}">Cek unggahan</a>
+        <a class="button-ghost" href="{{ url_for('view_hitung', sid=latest.id) }}">Hasil hitung</a>
+      </div>
+      {% endif %}
+    </div>
+
     {% include "_payroll.html" %}
+
     {% if error %}
     <p class="banner" role="alert">{{ error }}</p>
     {% endif %}
 
     {% if latest %}
-    <section class="hero">
-      <p class="kicker">Sedang dikerjakan</p>
-      <h1>{{ latest.alias }}</h1>
-      <p class="lede">
-        Diunggah {{ latest.when }}
-        {% if latest.period_start %}· {{ latest.period_start }} s/d {{ latest.period_end }}{% elif month %}· {{ month.period_start }} s/d {{ month.period_end }}{% endif %}.
-        Lanjutkan dari angka, atau unggah tarikan yang lebih baru.
-      </p>
-      <div class="hero-actions">
-        <a class="action" href="{{ url_for('view_hitung', sid=latest.id) }}">Buka tabel hasil hitung</a>
-        <a class="button-ghost" href="{{ url_for('view_transfer', sid=latest.id) }}">Buka tabel transfer</a>
-        <a class="button-ghost" href="{{ url_for('view_final', sid=latest.id) }}">Buka ringkasan akhir</a>
-      </div>
-    </section>
-
     {% if month and (not latest.period_start or latest.period_start == month.period_start) %}
-    <section class="stats">
-      <article>
-        <p>{{ tip('Gaji HRIS') }}</p>
+    <section class="compare-cards" aria-label="Ringkasan bulan">
+      <a class="compare-card" href="{{ url_for('view_hitung', sid=latest.id) }}">
+        <span>{{ tip('Gaji HRIS') }}</span>
         <strong>{{ month.hris_total | rp }}</strong>
-        <span>{{ month.officer_count }} petugas</span>
-      </article>
-      <article>
-        <p>{{ tip('Hasil hitung') }}</p>
+        <em>{{ month.officer_count }} petugas digaji</em>
+      </a>
+      <a class="compare-card" href="{{ url_for('view_hitung', sid=latest.id) }}">
+        <span>{{ tip('Hasil hitung') }}</span>
         <strong>{{ month.hitung_total | rp }}</strong>
-        <span>Dari file yang disimpan</span>
-      </article>
-      <article>
-        <p>{{ tip('Petugas baru') }} / {{ tip('Resign') }}</p>
+        <em>Dari file yang disimpan</em>
+      </a>
+      <a class="compare-card" href="{{ url_for('banding_unggah', unggah=latest.id, fokus='baru') }}">
+        <span>{{ tip('Petugas baru') }} / {{ tip('Resign') }}</span>
         <strong>{{ month.baru_count }} / {{ month.resign_count }}</strong>
-        <span>{{ tip('Banding') }} {{ month.appeal_count }}</span>
-      </article>
+        <em>{{ tip('Banding') }} {{ month.appeal_count }}</em>
+      </a>
+      <a class="compare-card" href="{{ url_for('view_transfer', sid=latest.id) }}">
+        <span>File transfer</span>
+        <strong>Buka</strong>
+        <em>Siap unduh ke bank</em>
+      </a>
     </section>
     {% endif %}
 

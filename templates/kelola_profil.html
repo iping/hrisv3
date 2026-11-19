@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ person.nama }} · Profil</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'payroll' %}
@@ -82,8 +82,8 @@
     <section class="panel">
       <h2>Payroll terakhir</h2>
       {% if history.lines %}
-      <div class="table-wrap">
-        <table>
+      <div class="sheet-scroll">
+        <table class="grid">
           <thead>
             <tr>
               <th>Periode</th>
@@ -111,8 +111,8 @@
       {% endif %}
       {% if history.appeals %}
       <h3>Banding</h3>
-      <div class="table-wrap">
-        <table>
+      <div class="sheet-scroll">
+        <table class="grid">
           <thead>
             <tr>
               <th>Periode</th>

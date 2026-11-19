@@ -218,8 +218,8 @@
   {% endif %}
 </section>
 {% if person.pay_profiles %}
-<div class="table-wrap">
-  <table>
+<div class="sheet-scroll">
+  <table class="grid">
     <thead>
       <tr>
         <th>Lokasi</th>
@@ -249,8 +249,8 @@
 {% for struktur in person.structures %}
 <section class="panel">
   <h2>{{ struktur.title }}{% if struktur.active %} <span class="pill pill-on">Dipakai sekarang</span>{% endif %}</h2>
-  <div class="table-wrap">
-    <table>
+  <div class="sheet-scroll">
+    <table class="grid">
       <thead><tr><th>Komponen</th><th>Keterangan</th><th class="num">Nilai</th></tr></thead>
       <tbody>
         {% for line in struktur.pay.lines %}
@@ -276,8 +276,8 @@
     {% if struktur.code == 'ojt' %}<p class="muted">Fee pada form ini disimpan sebagai gaji pokok. BPJS Kesehatan dan BPJS Ketenagakerjaan di form ini ikut tersimpan di profil.</p>{% endif %}
     <label>Insentif<input type="text" name="insentif" inputmode="numeric" value="{{ struktur.inputs.insentif }}" placeholder="0"></label>
     <h3>BPJS &amp; THR</h3>
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead><tr><th>Komponen</th><th>Nilai</th><th>Perlakuan</th></tr></thead>
         <tbody>
           <tr>
@@ -344,7 +344,7 @@
   </form>
 </section>
 {% elif tab == 'riwayat' %}
-<p class="lede">Setiap simpanan Data kerja, Gaji, Rekening, dan Payroll tercatat di sini, termasuk siapa yang menyimpan. Perubahan status disimpan sebagai langkah sendiri.</p>
+<p class="lede">Setiap simpanan Data kerja, Gaji, Rekening, Payroll, dan pembaruan dari unggahan tarikan tercatat di sini — termasuk siapa, kapan, dan dari file mana.</p>
 {% if payroll_info %}
 <section class="panel">
   <h2>Deposit payroll</h2>
@@ -369,9 +369,9 @@
   {% endif %}
 </section>
 {% endif %}
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>Waktu</th><th>Bagian</th><th>Yang berubah</th><th>Dari → ke</th><th>Oleh</th></tr></thead>
+<div class="sheet-scroll">
+  <table class="grid">
+    <thead><tr><th>Waktu</th><th>Bagian</th><th>Yang berubah</th><th>Dari → ke</th><th>Dari mana</th><th>Oleh</th></tr></thead>
     <tbody>
       {% for row in log %}
       <tr>
@@ -379,10 +379,11 @@
         <td>{{ row.bagian_label }}</td>
         <td>{{ row.field_label }}</td>
         <td>{{ row.change }}</td>
+        <td>{{ row.where or '—' }}</td>
         <td>{{ row.actor_label }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5">Belum ada perubahan.</td></tr>
+      <tr><td colspan="6">Belum ada perubahan.</td></tr>
       {% endfor %}
     </tbody>
   </table>

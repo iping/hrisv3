@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pengguna aplikasi</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=47">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'pengaturan' %}
@@ -80,8 +80,8 @@
 
     <section class="panel" style="margin-top:16px">
       <h2>Daftar akun</h2>
-      <div class="table-wrap">
-        <table>
+      <div class="sheet-scroll">
+        <table class="grid">
           <thead>
             <tr>
               <th>Nama</th>

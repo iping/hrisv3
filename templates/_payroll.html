@@ -1,5 +1,5 @@
 <nav class="section-switch payroll-home-nav" aria-label="Bagian payroll">
-  <a href="{{ url_for('home') }}" {% if pay == 'bulan' %}aria-current="page"{% endif %}>
+  <a href="{{ url_for('home', unggah=1) }}" {% if pay == 'bulan' %}aria-current="page"{% endif %}>
     Bulan ini
     <span>Unggah &amp; lanjutkan payroll</span>
   </a>

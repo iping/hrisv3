@@ -14,6 +14,8 @@
     </div>
   </div>
 
+  {% include "_payroll_attendance_activity.html" %}
+
   {% if detail.new_joiner %}
   <section class="newjoiner-box {{ detail.new_joiner.cls }}">
     <div class="newjoiner-head">
@@ -63,7 +65,9 @@
   <ul class="pay-log">
     {% for row in detail.banding %}
     <li>
-      <strong>{{ row.day }}</strong> · {{ row.before }} → {{ row.after }}
+      <strong>Tanggal absensi {{ row.day_label or row.day }}</strong>
+      {% if row.when %}<span class="muted">· diajukan {{ row.when }}</span>{% endif %}
+      <div>{{ row.before }} → {{ row.after }}</div>
       <span class="muted">{% if row.refund_label %}{{ row.refund_label }} · {% endif %}{{ row.effect }}</span>
     </li>
     {% endfor %}

@@ -275,6 +275,7 @@ class Officer:
     alpha: int = 0
     late: int = 0
     hadir: int = 0
+    off: int = 0
     ot_records: list[OvertimeRecord] = field(default_factory=list)
     new_joiner: bool = False
     first_attendance: str = ""
@@ -556,12 +557,16 @@ class Officer:
                 continue
             if not (row.refund or alpha_token_count(row.before)):
                 continue
+            day_iso = text(row.day)
             banding_rows.append(
                 {
-                    "day": row.day,
+                    "day": day_iso,
+                    "day_label": day_label(day_iso) if day_iso else (day_iso or "—"),
+                    "when": text(row.submitted) or "",
                     "before": row.before or "—",
                     "after": row.after or "—",
                     "effect": row.effect or "",
+                    "reason": text(getattr(row, "reason", "") or ""),
                     "refund": int(row.refund or 0),
                     "refund_label": money(row.refund, False) if row.refund else "",
                 }
@@ -577,6 +582,52 @@ class Officer:
             "lines": lines,
             "banding": banding_rows,
             "new_joiner": self.new_joiner_prorate_detail(),
+        }
+
+    def attendance_activity(self, banding: list | None = None, attendance_line: "AttendanceLine | None" = None, date_labels: list[str] | None = None) -> dict:
+        """Attendance facts for the payroll petugas drawer (period + counts + dated events)."""
+        start = text(self.period_start)
+        end = text(self.period_end)
+        if start and end:
+            period_label = f"{day_label(start)} – {day_label(end)}"
+            period_iso = f"{start} s/d {end}"
+        else:
+            period_label = "Periode mengikuti file"
+            period_iso = ""
+        alpha_days = ""
+        if attendance_line is not None and date_labels:
+            alpha_days = alpha_day_labels(attendance_line, date_labels)
+        key = (self.username or "").strip().lower()
+        events = []
+        for row in banding or []:
+            if (row.username or "").strip().lower() != key:
+                continue
+            day_iso = text(row.day)
+            events.append(
+                {
+                    "kind": "banding",
+                    "kind_label": "Banding absensi",
+                    "day": day_iso,
+                    "day_label": day_label(day_iso) if day_iso else (day_iso or "—"),
+                    "when": text(row.submitted) or "",
+                    "status": text(row.status) or "",
+                    "before": row.before or "—",
+                    "after": row.after or "—",
+                    "effect": row.effect or "",
+                    "reason": text(getattr(row, "reason", "") or ""),
+                    "approved": "APPROVED" in (row.status or "").upper(),
+                }
+            )
+        events.sort(key=lambda item: (item.get("day") or "", item.get("when") or ""), reverse=True)
+        return {
+            "period_label": period_label,
+            "period_iso": period_iso,
+            "hadir": int(self.hadir or 0),
+            "off": int(self.off or 0),
+            "late": int(self.late or 0),
+            "alpha": int(self.alpha or 0),
+            "alpha_days": alpha_days,
+            "events": events,
         }
 
 
@@ -893,7 +944,9 @@ def build(path: Path) -> Payroll:
         counts = attendance.get(person_key(officer.lokasi, officer.username, officer.nama), {})
         officer.alpha = counts.get("A", 0)
         officer.late = counts.get("L", 0)
-        officer.hadir = counts.get("OT", 0)
+        # Total hari hadir = OT (tepat waktu) + L (terlambat), sama dengan Cek unggahan
+        officer.hadir = int(counts.get("OT", 0) or 0) + int(counts.get("L", 0) or 0)
+        officer.off = int(counts.get("OFF", 0) or 0)
     apply_new_joiners(dates, attendance_lines, officers)
     unmatched = []
     for record in overtime:
@@ -1150,9 +1203,11 @@ SLIP_HEADERS = [
     "New Joiner",
     "Mulai Absensi",
     "Hari Kerja",
+    "Hari Off",
 ]
 
 SLIP_SKIP_TOTAL = {"Lokasi", "Nama", "Username", "New Joiner", "Mulai Absensi"}
+SLIP_COUNT_HEADERS = {"Hari Kerja", "Hari Off", "Jam Lembur", "Status Alpa"}
 
 
 def slip_bpjs(officer: Officer, allow: str, deduct: str) -> float:
@@ -1206,7 +1261,8 @@ def slip_row(officer: Officer) -> list:
         officer.selisih_gaji,
         "Ya" if officer.new_joiner else "",
         day_label(officer.first_attendance) if officer.new_joiner and officer.first_attendance else "",
-        officer.worked_days if officer.new_joiner else "",
+        officer.hadir,
+        officer.off,
     ]
 
 
@@ -1240,12 +1296,12 @@ def write_slip(wb: Workbook, payroll: Payroll) -> None:
         cell.fill = fill_total
         cell.border = thin
         header = SLIP_HEADERS[col - 1]
-        if header not in SLIP_SKIP_TOTAL and header != "Hari Kerja":
+        if header not in SLIP_SKIP_TOTAL and header not in SLIP_COUNT_HEADERS:
             cell.number_format = "#,##0"
     money_cols = {
         col
         for col, header in enumerate(SLIP_HEADERS, start=1)
-        if header not in SLIP_SKIP_TOTAL and header not in ("Jam Lembur", "Status Alpa", "Hari Kerja")
+        if header not in SLIP_SKIP_TOTAL and header not in SLIP_COUNT_HEADERS
     }
     style_header(ws, len(SLIP_HEADERS))
     paint(ws, money_cols)

@@ -1,0 +1,35 @@
+{% if attendance %}
+<section class="pay-attend-box" aria-label="Aktivitas absensi">
+  <div class="pay-attend-head">
+    <strong>Aktivitas absensi</strong>
+    <span class="muted">Periode {{ attendance.period_label }}{% if attendance.period_iso %} · {{ attendance.period_iso }}{% endif %}</span>
+  </div>
+  <div class="pay-metric-row pay-attend-metrics">
+    <div><span>{{ tip('Hari Kerja') }}</span><strong>{{ attendance.hadir }}</strong></div>
+    <div><span>{{ tip('Hari Off') }}</span><strong>{{ attendance.off }}</strong></div>
+    <div><span>Terlambat</span><strong>{{ attendance.late }}</strong></div>
+    <div><span>{{ tip('Alpa') }}</span><strong>{{ attendance.alpha }}</strong></div>
+  </div>
+  {% if attendance.alpha_days %}
+  <p class="muted pay-attend-alpa">Tanggal alpa: {{ attendance.alpha_days }}</p>
+  {% endif %}
+  {% if attendance.events %}
+  <h3 class="drawer-sub">Kejadian absensi (tanggal &amp; waktu)</h3>
+  <ul class="pay-log pay-attend-log">
+    {% for row in attendance.events %}
+    <li>
+      <strong>{{ row.kind_label }}</strong>
+      · tanggal absensi <strong>{{ row.day_label }}</strong>
+      {% if row.when %}<span class="muted">· diajukan {{ row.when }}</span>{% endif %}
+      <div>{{ row.before }} → {{ row.after }}{% if row.status %} · {{ row.status }}{% endif %}</div>
+      {% if row.reason or row.effect %}
+      <span class="muted">{% if row.reason %}{{ row.reason }}{% endif %}{% if row.reason and row.effect %} · {% endif %}{% if row.effect %}{{ row.effect }}{% endif %}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Tidak ada pengajuan banding absensi di periode ini untuk petugas ini.</p>
+  {% endif %}
+</section>
+{% endif %}

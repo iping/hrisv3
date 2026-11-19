@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kelola shift</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'data' %}
@@ -28,8 +28,8 @@
       </label>
     </form>
 
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead><tr><th>Nama</th><th>Jam</th><th>Tenggang</th><th></th></tr></thead>
         <tbody>
           {% for shift in shifts %}

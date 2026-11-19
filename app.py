@@ -26,6 +26,7 @@ from markupsafe import Markup, escape as html_escape
 from openpyxl import load_workbook
 
 from archive import legend_terms, list_months, month_page, person_history, save_month, split_period
+from compare import compare_page
 from db import (
     TERMS,
     add_activity as _add_activity,
@@ -68,6 +69,7 @@ from presence import (
     employee_row,
     officer_filters,
     officer_status_index,
+    min_work_days_index,
     apply_payroll_conditions,
     officer_payroll_info,
     payroll_adjustment_log,
@@ -79,6 +81,7 @@ from presence import (
     PAYROLL_TAMBAHAN_REASONS,
     save_payroll_condition,
     save_payroll_syarat,
+    apply_upload_profiles,
     file_banding,
     POSITIONS,
     profile_log,
@@ -172,6 +175,7 @@ PATHS = {
     "istilah": "/istilah",
     "arsip": "/arsip",
     "arsip_bulan": "/arsip/<month_id>",
+    "banding_unggah": "/banding-unggah",
     "analyze": "/analyze",
     "kelola": "/kelola",
     "save_kelola": "/kelola",
@@ -242,8 +246,8 @@ BOOKS = {
             "Slip Gaji": {
                 "title": "Slip gaji",
                 "hint": "Gaji dihitung per petugas",
-                "help": "Satu baris satu petugas. Pakai kolom Selisih dan Rincian untuk menelusuri asal angka. New Joiner dihitung prorate dari hari kerja pertama di periode ini.",
-                "terms": ["Selisih", "New Joiner", "Prorate", "Deposit", "Syarat"],
+                "help": "Satu baris satu petugas. Hari Kerja = OT+L, Hari Off = kode OFF. Pakai kartu Kehadiran kurang untuk yang di bawah minimum hari hadir lokasi/petugas.",
+                "terms": ["Selisih", "New Joiner", "Prorate", "Deposit", "Syarat", "Hari Kerja", "Hari Off", "Minimum hari hadir"],
             },
             "Tidak Dihitung": {
                 "title": "Tidak dihitung",
@@ -266,8 +270,8 @@ BOOKS = {
             "Rincian Lembur": {
                 "title": "Rincian lembur",
                 "hint": "Detail fee lembur",
-                "help": "Rincian lembur yang masuk ke gaji dihitung, berdasarkan durasi kerja.",
-                "terms": ["Lembur"],
+                "help": "Setiap baris satu sesi lembur. Cocok = Fee Dihitung sama dengan Fee HRIS. Masuk slip = Ya jika sesi ini sudah terikat ke petugas di Slip Gaji; Tidak berarti lembur tidak ketemu di payroll.",
+                "terms": ["Lembur", "Cocok", "Masuk slip", "Fee HRIS", "Fee Dihitung"],
             },
             "Denda Alpa": {
                 "title": "Denda alpa",
@@ -277,8 +281,8 @@ BOOKS = {
             },
             "Banding": {
                 "title": "Banding",
-                "hint": "Perbaikan absensi yang disetujui",
-                "help": "Banding yang disetujui mengubah kode absensi sebelum denda dihitung. Nilai dikembalikan muncul jika status A diganti ke kode lain.",
+                "hint": "Disetujui, menunggu, ditolak",
+                "help": "Semua pengajuan banding dari file. Status Disetujui mengubah kode absensi sebelum denda dihitung; Menunggu/Ditolak tidak mengubah hitungan.",
                 "terms": ["Banding", "Alpa"],
             },
             "Detail Absensi": {
@@ -832,6 +836,34 @@ def arsip_bulan(month_id: str):
     return render_template("arsip_bulan.html", page=page)
 
 
+def banding_unggah():
+    sid = (request.args.get("unggah") or "").strip()
+    dasar = (request.args.get("dasar") or "").strip()
+    focus = (request.args.get("fokus") or "perhatian").strip() or "perhatian"
+    tab = (request.args.get("tab") or "petugas").strip() or "petugas"
+    baseline_kind = ""
+    baseline_id = ""
+    if ":" in dasar:
+        baseline_kind, baseline_id = dasar.split(":", 1)
+    page = compare_page(
+        sid=sid,
+        baseline_kind=baseline_kind,
+        baseline_id=baseline_id,
+        focus=focus,
+        tab=tab,
+    )
+    sync = {}
+    if page.get("upload"):
+        meta_path = SESSIONS / page["upload"]["id"] / "meta.json"
+        if meta_path.exists():
+            try:
+                sync = json.loads(meta_path.read_text(encoding="utf-8")).get("profile_sync") or {}
+            except (json.JSONDecodeError, OSError):
+                sync = {}
+    page["profile_sync"] = sync
+    return render_template("banding_unggah.html", page=page)
+
+
 def analyze():
     upload = request.files.get("source")
     if upload is None or not upload.filename:
@@ -868,11 +900,29 @@ def analyze():
     save_month(source_path, payroll)
     start, end = split_period(payroll.period)
     remember_upload(sid, meta["source_name"], start, end, meta["source_name"])
+    sync = apply_upload_profiles(
+        source_path,
+        upload_id=sid,
+        source_name=meta["source_name"],
+        period=payroll.period or (f"{start} s/d {end}" if start and end else ""),
+    )
+    meta["profile_sync"] = {
+        "updated": sync.get("updated") or 0,
+        "fields": sync.get("fields") or 0,
+        "error": sync.get("error") or "",
+    }
     add_activity("unggah", f"Mengunggah {meta['source_name']}", payroll.period or "Periode mengikuti file", sid)
+    if sync.get("updated"):
+        add_activity(
+            "profil",
+            f"Memperbarui {sync['updated']} profil petugas dari unggahan",
+            f"{sync.get('fields') or 0} field berubah · {payroll.period or meta['source_name']}",
+            sid,
+        )
     refresh_terms(source_path)
     write_eligible_book(folder, payroll)
     (folder / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
-    return redirect(url_for("report", sid=sid))
+    return redirect(url_for("banding_unggah", unggah=sid, fokus="perhatian"))
 
 
 def latest_source() -> Path | None:
@@ -1425,18 +1475,21 @@ def _banding_usernames(sheets) -> set[str]:
 
 def _mark_payroll_people(sheets) -> None:
     index = officer_status_index()
+    min_days = min_work_days_index()
     blocked = payroll_blocked_usernames()
     conditions = payroll_conditions_index()
     banding_users = _banding_usernames(sheets)
     for sheet in sheets:
         headers = sheet["headers"]
-        sheet["person"] = "Username" in headers
+        # Banding has Username but is not a payroll-person sheet
+        sheet["person"] = "Username" in headers and sheet.get("name") != "Banding"
         sheet["excluded"] = False
         if not sheet["person"]:
             continue
         at = headers.index("Username")
         lokasi_at = headers.index("Lokasi") if "Lokasi" in headers else -1
         deposit_at = headers.index("Deposit") if "Deposit" in headers else -1
+        hadir_at = headers.index("Hari Kerja") if "Hari Kerja" in headers else -1
         kept = []
         total = None
         for row in sheet["rows"]:
@@ -1457,6 +1510,10 @@ def _mark_payroll_people(sheets) -> None:
             row["filter_deposit"] = ""
             row["filter_selisih"] = ""
             row["filter_alpa"] = ""
+            row["filter_hadir"] = ""
+            row["filter_min_hadir"] = ""
+            row["filter_hadir_ok"] = ""
+            row["hadir_kurang"] = False
             row["filter_new_joiner"] = ""
             row["filter_normal"] = "0"
             if row["total"]:
@@ -1483,6 +1540,13 @@ def _mark_payroll_people(sheets) -> None:
             deposit = _sheet_amount(row, headers, "Deposit")
             selisih = _sheet_amount(row, headers, "Selisih")
             alpa = _sheet_amount(row, headers, "Status Alpa")
+            hadir = _sheet_amount(row, headers, "Hari Kerja")
+            if hadir is None and hadir_at >= 0 and hadir_at < len(row["cells"]):
+                raw_hadir = row["cells"][hadir_at].get("sort") or row["cells"][hadir_at].get("text") or ""
+                try:
+                    hadir = float(raw_hadir) if str(raw_hadir).strip() != "" else None
+                except ValueError:
+                    hadir = None
             lembur_hris = _sheet_amount(row, headers, "Lembur HRIS")
             lembur_hitung = _sheet_amount(row, headers, "Lembur Dihitung")
             jam_lembur = _sheet_amount(row, headers, "Jam Lembur")
@@ -1501,6 +1565,21 @@ def _mark_payroll_people(sheets) -> None:
                 row["filter_selisih"] = f"{selisih:.6f}"
             if alpa is not None:
                 row["filter_alpa"] = f"{alpa:.6f}"
+            if hadir is not None:
+                row["filter_hadir"] = f"{hadir:.6f}"
+            min_info = min_days.get(username) or {}
+            # Profil petugas/lokasi; kalau belum diatur, pakai 10 hari (sama batas Cek unggahan)
+            min_hadir = min_info.get("min_work_days")
+            if min_hadir is None:
+                min_hadir = 10
+                row["filter_min_hadir"] = "10"
+                row["min_hadir_default"] = True
+            else:
+                row["filter_min_hadir"] = str(int(min_hadir))
+                row["min_hadir_default"] = False
+            days_hadir = int(hadir or 0)
+            row["hadir_kurang"] = days_hadir < int(min_hadir)
+            row["filter_hadir_ok"] = "0" if row["hadir_kurang"] else "1"
             cond = conditions.get(username) or {}
             row["has_potongan"] = cond.get("potongan") is not None or cond.get("deposit") is not None
             row["has_tambahan"] = cond.get("tambahan") is not None
@@ -1549,6 +1628,7 @@ def _mark_payroll_people(sheets) -> None:
                 and not has_extra_pay
                 and not row["new_joiner"]
                 and not row["has_condition"]
+                and not row["hadir_kurang"]
             )
             row["filter_normal"] = "1" if row["normal_case"] else "0"
             kept.append(row)
@@ -1686,6 +1766,99 @@ def _sheet_nav(spec: dict, sheets: list[dict]) -> list[dict]:
     return groups, ordered
 
 
+def _normalize_banding_status(raw: str) -> str:
+    text = (raw or "").strip().lower()
+    if not text:
+        return ""
+    if "approve" in text or "disetujui" in text:
+        return "disetujui"
+    if "pending" in text or "menunggu" in text or "waiting" in text:
+        return "menunggu"
+    if "reject" in text or "tolak" in text or "ditolak" in text:
+        return "ditolak"
+    return text
+
+
+def _payroll_banding_summary(sheets: list[dict]) -> dict:
+    """Counts for Banding sheet statuses so payroll users see approve/reject/pending totals."""
+    counts = {"total": 0, "disetujui": 0, "menunggu": 0, "ditolak": 0, "lain": 0}
+    for sheet in sheets:
+        if sheet.get("name") != "Banding":
+            continue
+        headers = sheet.get("headers") or []
+        if "Status" not in headers:
+            continue
+        at = headers.index("Status")
+        for row in sheet.get("rows") or []:
+            if row.get("total"):
+                continue
+            cells = row.get("cells") or []
+            raw = cells[at].get("text") if at < len(cells) else ""
+            kind = _normalize_banding_status(raw)
+            row["filter_banding"] = kind
+            counts["total"] += 1
+            if kind in {"disetujui", "menunggu", "ditolak"}:
+                counts[kind] += 1
+            else:
+                counts["lain"] += 1
+        sheet["banding"] = True
+        break
+    return counts
+
+
+def _payroll_focus_summary(sheets: list[dict]) -> dict:
+    """Quick-filter counts for Slip Gaji person rows (compare-cards)."""
+    people = []
+    for sheet in sheets:
+        if sheet.get("name") != "Slip Gaji" or not sheet.get("person"):
+            continue
+        people = [row for row in sheet.get("rows") or [] if not row.get("total")]
+        break
+    if not people:
+        for sheet in sheets:
+            if not sheet.get("person") or sheet.get("excluded"):
+                continue
+            people = [row for row in sheet.get("rows") or [] if not row.get("total")]
+            if people:
+                break
+
+    def _num(row, key):
+        raw = row.get(key) or ""
+        if raw == "":
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            return None
+
+    total = len(people)
+    selisih = sum(1 for row in people if row.get("has_selisih"))
+    normal = sum(1 for row in people if row.get("filter_normal") == "1")
+    new_joiner = sum(1 for row in people if row.get("filter_new_joiner") == "1" or row.get("new_joiner"))
+    deposit = sum(1 for row in people if (_num(row, "filter_deposit") or 0) > 0)
+    hadir_kurang = sum(1 for row in people if row.get("hadir_kurang") or row.get("filter_hadir_ok") == "0")
+    hadir_ok = sum(1 for row in people if row.get("filter_hadir_ok") == "1")
+    perhatian = sum(
+        1
+        for row in people
+        if row.get("has_selisih")
+        or row.get("new_joiner")
+        or row.get("has_condition")
+        or row.get("hadir_kurang")
+        or (_num(row, "filter_deposit") or 0) > 0
+    )
+    return {
+        "total": total,
+        "perhatian": perhatian,
+        "selisih": selisih,
+        "normal": normal,
+        "new_joiner": new_joiner,
+        "deposit": deposit,
+        "hadir_kurang": hadir_kurang,
+        "hadir_ok": hadir_ok,
+    }
+
+
 def view_book(sid: str, book: str):
     spec = BOOKS.get(book)
     if spec is None:
@@ -1708,11 +1881,14 @@ def view_book(sid: str, book: str):
     heading = spec["title"]
     if book == "hitung" and "2026-10" in source_name:
         heading = "Payroll Oktober 2026"
-    filters = _payroll_filter_options([])
+    _mark_payroll_people(sheets)
+    banding = _payroll_banding_summary(sheets) if book == "hitung" else {
+        "total": 0, "disetujui": 0, "menunggu": 0, "ditolak": 0, "lain": 0
+    }
     if book == "hitung":
-        _mark_payroll_people(sheets)
         sheets.append(_excluded_sheet())
-        filters = _payroll_filter_options(sheets)
+    filters = _payroll_filter_options(sheets)
+    focus = _payroll_focus_summary(sheets)
     sheet_groups, sheets = _sheet_nav(spec, sheets)
     active_id = sheet_slug(active)
     guide_terms = []
@@ -1724,6 +1900,10 @@ def view_book(sid: str, book: str):
                 continue
             seen_terms.add(key)
             guide_terms.append(term)
+    from compare import session_source
+
+    uploads = [row for row in list_uploads() if session_source(row["id"])]
+    upload = get_upload(folder.name)
     return render_template(
         "grid.html",
         book=book,
@@ -1737,6 +1917,10 @@ def view_book(sid: str, book: str):
         source_name=source_name,
         heading=heading,
         filters=filters,
+        focus=focus,
+        banding=banding,
+        uploads=uploads,
+        upload=upload,
     )
 
 
@@ -2404,7 +2588,7 @@ def _payroll_panel_mode(raw: str) -> str:
 
 
 def _officer_from_session(sid: str, username: str):
-    """Load one officer (+ banding) from a payroll session source."""
+    """Load one officer (+ banding + attendance activity) from a payroll session source."""
     source = None
     if sid and SESSION_ID.match(sid):
         folder = (SESSIONS / sid).resolve()
@@ -2415,12 +2599,33 @@ def _officer_from_session(sid: str, username: str):
     if source is None:
         source = latest_source()
     if source is None or not source.exists():
-        return None, []
+        return None, [], None
     payroll = build(source)
     apply_payroll_conditions(payroll)
     key = (username or "").strip().lower()
     officer = next((row for row in payroll.officers if (row.username or "").strip().lower() == key), None)
-    return officer, payroll.banding
+    if officer is None:
+        return None, payroll.banding, None
+    line = next(
+        (
+            row
+            for row in payroll.attendance
+            if (row.username or "").strip().lower() == key
+            and (not officer.lokasi or (row.lokasi or "").strip().lower() == (officer.lokasi or "").strip().lower())
+        ),
+        None,
+    )
+    if line is None:
+        line = next(
+            (row for row in payroll.attendance if (row.username or "").strip().lower() == key),
+            None,
+        )
+    activity = officer.attendance_activity(
+        payroll.banding,
+        attendance_line=line,
+        date_labels=list(payroll.attendance_dates or []),
+    )
+    return officer, payroll.banding, activity
 
 
 def _render_selisih_panel(officer_id: str, file_deposit: float | None = None, sid: str = ""):
@@ -2430,7 +2635,7 @@ def _render_selisih_panel(officer_id: str, file_deposit: float | None = None, si
     if file_deposit is None:
         file_deposit = file_deposit_for_username(person.get("username") or "")
     source_deposit = int(round(float(file_deposit or 0)))
-    officer, banding = _officer_from_session(sid, person.get("username") or "")
+    officer, banding, attendance = _officer_from_session(sid, person.get("username") or "")
     if officer is None:
         detail = {
             "paid_label": "—",
@@ -2447,6 +2652,7 @@ def _render_selisih_panel(officer_id: str, file_deposit: float | None = None, si
         "data_payroll_selisih_panel.html",
         person=person,
         detail=detail,
+        attendance=attendance,
         source_deposit=source_deposit,
         snapshot={
             "id": person["id"],
@@ -2469,10 +2675,15 @@ def _render_payroll_detail_panel(officer_id: str, file_deposit: float | None = N
         file_deposit = file_deposit_for_username(person.get("username") or "")
     source_deposit = int(round(float(file_deposit or 0)))
     payroll_info = officer_payroll_info(person["id"], source_deposit)
+    _officer, _banding, attendance = _officer_from_session(
+        request.args.get("sid") or "",
+        person.get("username") or "",
+    )
     return render_template(
         "data_payroll_detail_panel.html",
         person=person,
         payroll_info=payroll_info,
+        attendance=attendance,
         source_deposit=source_deposit,
         snapshot={
             "id": person["id"],
@@ -2509,6 +2720,10 @@ def _render_payroll_panel(
     potongan_value = condition["potongan"] if condition.get("potongan") is not None else ""
     tambahan_value = condition["tambahan"] if condition.get("tambahan") is not None else ""
     labels = {"potongan": "Pengurangan payroll", "tambahan": "Penambahan payroll", "catatan": "Syarat payroll"}
+    _officer, _banding, attendance = _officer_from_session(
+        request.args.get("sid") or "",
+        person.get("username") or "",
+    )
     return render_template(
         "data_payroll_panel.html",
         person=person,
@@ -2521,6 +2736,7 @@ def _render_payroll_panel(
         tambahan_reasons=PAYROLL_TAMBAHAN_REASONS,
         source_deposit=int(round(float(source_deposit or 0))),
         adjustment_log=payroll_adjustment_log(person["id"]),
+        attendance=attendance,
         saved=saved,
         salah=salah,
         snapshot={
@@ -2664,6 +2880,7 @@ ROUTES = [
     ("GET", re.compile(r"^/istilah$"), istilah),
     ("GET", re.compile(r"^/arsip$"), arsip),
     ("GET", re.compile(r"^/arsip/(?P<month_id>[0-9]+)$"), arsip_bulan),
+    ("GET", re.compile(r"^/banding-unggah$"), banding_unggah),
     ("POST", re.compile(r"^/analyze$"), analyze),
     ("GET", re.compile(r"^/data/lokasi$"), data_lokasi),
     ("POST", re.compile(r"^/data/lokasi$"), save_data_lokasi),

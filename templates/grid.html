@@ -4,50 +4,81 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ heading }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=61">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=76">
   <meta name="payroll-sid" content="{{ sid }}">
 </head>
 <body class="grid-page">
   {% set nav = 'payroll' %}
   {% set wide = true %}
   {% set step = 'slip' if book == 'hitung' else 'transfer' %}
+  {% set focus = focus or {} %}
   {% include "_nav.html" %}
   {% include "_work.html" %}
   <main class="wrap wide payroll-shell">
-    <header class="payroll-context">
-      <div class="payroll-context-copy">
-        <p class="payroll-kicker">{% if book == 'hitung' %}Langkah 2 · Hasil hitung{% else %}Langkah 3 · File transfer{% endif %}</p>
+    <div class="page-head compare-head">
+      <div>
+        <p class="kicker">{% if book == 'hitung' %}Langkah 2 · Hasil hitung{% else %}Langkah 3 · File transfer{% endif %}</p>
         <h1>{{ heading }}</h1>
-        <p class="payroll-meta">
-          <span>{{ source_name }}</span>
-          <span aria-hidden="true">·</span>
-          <span>{{ spec.blurb }}</span>
+        <p class="lede">
+          {{ spec.blurb }}
+          Cari nama atau lokasi — saringan kartu bekerja seperti di Cek unggahan.
         </p>
       </div>
-      <div class="payroll-context-actions">
+      <div class="page-actions">
         {% if book == 'hitung' %}
         <a class="action" href="{{ url_for('download', sid=sid) }}">Unduh Excel</a>
-        <details class="payroll-more">
-          <summary>Lanjut</summary>
-          <div class="payroll-more-menu">
-            <a href="{{ url_for('view_transfer', sid=sid) }}">3 · File transfer</a>
-            <a href="{{ url_for('view_final', sid=sid) }}">4 · Ringkasan akhir</a>
-            <a href="{{ url_for('home', unggah=1) }}">Unggah file lain</a>
-          </div>
-        </details>
+        <a class="button-ghost" href="{{ url_for('view_transfer', sid=sid) }}">Lanjut transfer</a>
         {% else %}
         <a class="action" href="{{ url_for('download_transfer', sid=sid) }}">Unduh Excel</a>
-        <details class="payroll-more">
-          <summary>Lanjut</summary>
-          <div class="payroll-more-menu">
-            <a href="{{ url_for('view_hitung', sid=sid) }}">2 · Hasil hitung</a>
-            <a href="{{ url_for('view_final', sid=sid) }}">4 · Ringkasan akhir</a>
-            <a href="{{ url_for('home', unggah=1) }}">Unggah file lain</a>
-          </div>
-        </details>
+        <a class="button-ghost" href="{{ url_for('view_final', sid=sid) }}">Ringkasan akhir</a>
         {% endif %}
       </div>
-    </header>
+    </div>
+
+    {% if uploads %}
+    <div class="compare-bar" id="payroll-file-bar">
+      <label>
+        File unggahan
+        <select id="unggah-select" data-book="{{ book }}">
+          {% for row in uploads %}
+          <option
+            value="{{ row.id }}"
+            data-hitung="{{ url_for('view_hitung', sid=row.id) }}"
+            data-transfer="{{ url_for('view_transfer', sid=row.id) }}"
+            {% if row.id == sid %}selected{% endif %}
+          >
+            {{ row.source_name or row.alias }}{% if row.period_start %} · {{ row.period_start }} s/d {{ row.period_end }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <p class="compare-baseline muted">
+        File aktif: <strong>{{ source_name }}</strong>
+        {% if upload and upload.period_start %} · {{ upload.period_start }} s/d {{ upload.period_end }}{% endif %}
+        · <a class="text-link" href="{{ url_for('banding_unggah', unggah=sid) }}">Cek unggahan</a>
+        · <a class="text-link" href="{{ url_for('home', unggah=1) }}">Unggah lain</a>
+      </p>
+    </div>
+    {% endif %}
+
+    <nav class="section-switch" aria-label="Langkah payroll" id="payroll-section-switch">
+      <a href="{{ url_for('banding_unggah', unggah=sid) }}">
+        Cek unggahan
+        <span>Petugas, lokasi, kehadiran</span>
+      </a>
+      <a href="{{ url_for('view_hitung', sid=sid) }}" {% if book == 'hitung' %}aria-current="page"{% endif %}>
+        Hasil hitung
+        <span>{{ focus.perhatian or 0 }} perlu dicek</span>
+      </a>
+      <a href="{{ url_for('view_transfer', sid=sid) }}" {% if book == 'transfer' %}aria-current="page"{% endif %}>
+        File transfer
+        <span>Siap unduh ke bank</span>
+      </a>
+      <a href="{{ url_for('view_final', sid=sid) }}">
+        Ringkasan akhir
+        <span>Keputusan bayar</span>
+      </a>
+    </nav>
 
     <section class="payroll-board" aria-label="Menu tabel payroll">
       {% if sheet_groups|length > 1 %}
@@ -78,6 +109,7 @@
               data-sheet="{{ sheet.id }}"
               data-group="{{ group.id }}"
               data-person="{{ '1' if sheet.person else '0' }}"
+              data-banding-sheet="{{ '1' if sheet.name == 'Banding' else '0' }}"
               data-title="{{ sheet.title or sheet.name }}"
               data-help="{{ sheet.help or '' }}"
               data-terms="{{ (sheet.terms or [])|join('|') }}"
@@ -86,7 +118,11 @@
               aria-selected="{{ 'true' if sheet.id == active else 'false' }}"
             >
               <strong>{{ sheet.title or sheet.name }}</strong>
+              {% if sheet.name == 'Banding' and banding %}
+              <span>{{ banding.total or 0 }} · ✓{{ banding.disetujui or 0 }} · …{{ banding.menunggu or 0 }} · ✕{{ banding.ditolak or 0 }}</span>
+              {% else %}
               <span>{{ sheet.rows|length }}</span>
+              {% endif %}
               {% if sheet.hint %}<em>{{ sheet.hint }}</em>{% endif %}
             </button>
             {% endfor %}
@@ -107,10 +143,95 @@
       </div>
     </section>
 
+    {% if book == 'hitung' %}
+    {% set banding = banding or {} %}
+    <section class="compare-cards banding-cards" id="banding-cards" aria-label="Ringkasan banding">
+      <button type="button" class="compare-card" data-banding="all" data-sheet="banding">
+        <span>Total banding</span>
+        <strong>{{ banding.total or 0 }}</strong>
+        <em>Semua pengajuan di periode ini</em>
+      </button>
+      <button type="button" class="compare-card" data-banding="disetujui" data-sheet="banding">
+        <span>Disetujui</span>
+        <strong>{{ banding.disetujui or 0 }}</strong>
+        <em>Masuk hitungan absensi</em>
+      </button>
+      <button type="button" class="compare-card" data-banding="menunggu" data-sheet="banding">
+        <span>Menunggu</span>
+        <strong>{{ banding.menunggu or 0 }}</strong>
+        <em>Belum diputuskan</em>
+      </button>
+      <button type="button" class="compare-card" data-banding="ditolak" data-sheet="banding">
+        <span>Ditolak</span>
+        <strong>{{ banding.ditolak or 0 }}</strong>
+        <em>Tidak mengubah hitungan</em>
+      </button>
+    </section>
+
+    <section class="compare-cards" id="compare-cards" data-person-filter aria-label="Saringan cepat">
+      <button type="button" class="compare-card is-on" data-filter="perhatian">
+        <span>Perlu dicek</span>
+        <strong>{{ focus.perhatian or 0 }}</strong>
+        <em>Selisih, New Joiner, deposit, syarat</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="selisih">
+        <span>Ada selisih</span>
+        <strong>{{ focus.selisih or 0 }}</strong>
+        <em>Angka hitung beda dari HRIS</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="new_joiner">
+        <span>New Joiner</span>
+        <strong>{{ focus.new_joiner or 0 }}</strong>
+        <em>Prorate petugas baru</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="deposit">
+        <span>Ada deposit</span>
+        <strong>{{ focus.deposit or 0 }}</strong>
+        <em>Sudah dipotong di file</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="hadir_kurang">
+        <span>Kehadiran kurang</span>
+        <strong>{{ focus.hadir_kurang or 0 }}</strong>
+        <em>Hari Kerja &lt; minimum (profil/lokasi, atau 10)</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="hadir_ok">
+        <span>Kehadiran cukup</span>
+        <strong>{{ focus.hadir_ok or 0 }}</strong>
+        <em>Hari Kerja memenuhi minimum</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="normal">
+        <span>Normal case</span>
+        <strong>{{ focus.normal or 0 }}</strong>
+        <em>Tanpa isu yang perlu dicek</em>
+      </button>
+      <button type="button" class="compare-card" data-filter="all">
+        <span>Semua petugas</span>
+        <strong>{{ focus.total or 0 }}</strong>
+        <em>Cari nama di sini juga</em>
+      </button>
+    </section>
+    {% endif %}
+
     <form class="payroll-toolbar officer-filter" id="payroll-filter" onsubmit="return false;">
-      <div class="payroll-toolbar-main">
-        <label class="payroll-search">Cari
-          <input id="q" type="search" placeholder="Nama, lokasi, atau angka" aria-label="Cari di tabel">
+      <div class="compare-search tools payroll-toolbar-main">
+        <label class="compare-search-label" for="q">Cari petugas
+          <input id="q" type="search" placeholder="Nama, username, atau angka" aria-label="Cari petugas di tabel" autocomplete="off">
+        </label>
+        <label class="payroll-quick payroll-lokasi" data-person-filter>Lokasi
+          <input id="filter-lokasi-q" type="search" list="lokasi-list" placeholder="Ketik nama lokasi" aria-label="Cari atau saring lokasi" autocomplete="off">
+          <datalist id="lokasi-list">
+            {% for name in filters.lokasi %}
+            <option value="{{ name }}"></option>
+            {% endfor %}
+          </datalist>
+        </label>
+        <label class="payroll-quick" data-person-filter>Pilih lokasi
+          <select id="filter-lokasi" name="lokasi">
+            <option value="">Semua lokasi</option>
+            {% for name in filters.lokasi %}
+            <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+          </select>
         </label>
         {% if book == 'hitung' %}
         <label class="payroll-quick" data-person-filter>Status akun
@@ -121,28 +242,19 @@
             {% endfor %}
           </select>
         </label>
-        <label class="payroll-check" data-person-filter title="Tanpa selisih, lembur, banding, potongan/deposit/denda, dan bukan New Joiner">
-          <input id="filter-normal" type="checkbox" value="1">
-          <span>{{ tip('Normal Case') }}</span>
-        </label>
-        <button class="action" type="button" id="filter-apply" data-person-filter>Tampilkan</button>
+        <input id="filter-normal" type="checkbox" value="1" hidden>
+        <button class="button-ghost" type="button" id="filter-clear" hidden>Hapus saringan</button>
+        {% else %}
         <button class="button-ghost" type="button" id="filter-clear" hidden>Hapus saringan</button>
         {% endif %}
         <p class="muted payroll-count" id="shown"></p>
+        <p class="muted compare-search-hint" id="search-hint" hidden>Ketik nama untuk mencari di seluruh data, tidak hanya saringan aktif.</p>
       </div>
       {% if book == 'hitung' %}
       <details class="advanced-filter" id="filter-advanced" data-person-filter>
         <summary>Saringan lanjutan</summary>
         <p class="muted filter-hint">Sentuh istilah bergaris putus untuk arti singkat.</p>
         <div class="filter-grid">
-          <label>Lokasi
-            <select id="filter-lokasi" name="lokasi">
-              <option value="">Semua</option>
-              {% for name in filters.lokasi %}
-              <option value="{{ name }}">{{ name }}</option>
-              {% endfor %}
-            </select>
-          </label>
           <label>{{ tip('Gaji pokok') }} dari<input id="filter-gaji-dari" type="number" min="0" step="1" placeholder="0"></label>
           <label>{{ tip('Gaji pokok') }} sampai<input id="filter-gaji-sampai" type="number" min="0" step="1" placeholder="0"></label>
           <label>{{ tip('Hasil hitung') }} dari<input id="filter-hitung-dari" type="number" step="1" placeholder="0"></label>
@@ -179,13 +291,20 @@
               <option value="bukan">Bukan New Joiner</option>
             </select>
           </label>
+          <label>{{ tip('Hari Kerja') }} vs {{ tip('Minimum hari hadir') }}
+            <select id="filter-hadir-ok">
+              <option value="">Semua</option>
+              <option value="kurang">Kehadiran kurang (&lt; minimum)</option>
+              <option value="cukup">Kehadiran cukup (≥ minimum)</option>
+            </select>
+          </label>
         </div>
       </details>
       {% endif %}
     </form>
 
     {% for sheet in sheets %}
-    <section class="sheet payroll-stage" id="sheet-{{ sheet.id }}" data-person="{{ '1' if sheet.person else '0' }}" data-group="{{ sheet.group_id or '' }}" {% if sheet.id != active %}hidden{% endif %}>
+    <section class="sheet payroll-stage" id="sheet-{{ sheet.id }}" data-person="{{ '1' if sheet.person else '0' }}" data-banding-sheet="{{ '1' if sheet.name == 'Banding' else '0' }}" data-group="{{ sheet.group_id or '' }}" {% if sheet.id != active %}hidden{% endif %}>
       <div class="sheet-scroll">
         <table class="grid">
           <thead>
@@ -193,7 +312,7 @@
               <th class="rowno"></th>
               {% for header in sheet.headers %}
               <th class="{% if loop.first %}{{ 'pin-a' if sheet.freeze == 2 else 'sticky' }}{% elif loop.index0 == 1 and sheet.freeze == 2 %}pin-b{% endif %}{% if sheet.numeric[loop.index0] %} num{% endif %}">
-                <button type="button" class="sort-link" data-col="{{ loop.index0 }}">{{ header }}<span class="sort-mark"></span></button>
+                <button type="button" class="sort-link" data-col="{{ loop.index0 }}">{{ tip(header) }}<span class="sort-mark"></span></button>
               </th>
               {% endfor %}
               {% if book == 'hitung' and sheet.person %}
@@ -212,6 +331,10 @@
                 data-deposit="{{ row.filter_deposit or '' }}"
                 data-selisih="{{ row.filter_selisih or '' }}"
                 data-alpa="{{ row.filter_alpa or '' }}"
+                data-hadir="{{ row.filter_hadir or '' }}"
+                data-min-hadir="{{ row.filter_min_hadir or '' }}"
+                data-hadir-ok="{{ row.filter_hadir_ok or '' }}"
+                data-banding="{{ row.filter_banding or '' }}"
                 data-syarat="{{ '1' if row.has_condition else '0' }}"
                 data-new-joiner="{{ row.filter_new_joiner or '0' }}"
                 data-normal="{{ row.filter_normal or '0' }}">
@@ -292,9 +415,11 @@
   <script>
     const input = document.getElementById("q");
     const shown = document.getElementById("shown");
+    const searchHint = document.getElementById("search-hint");
     const tabs = Array.from(document.querySelectorAll(".sheet-tab"));
     const statusFilter = document.getElementById("filter-status");
     const lokasiFilter = document.getElementById("filter-lokasi");
+    const lokasiSearch = document.getElementById("filter-lokasi-q");
     const gajiDari = document.getElementById("filter-gaji-dari");
     const gajiSampai = document.getElementById("filter-gaji-sampai");
     const hitungDari = document.getElementById("filter-hitung-dari");
@@ -305,8 +430,8 @@
     const alpaSampai = document.getElementById("filter-alpa-sampai");
     const syaratFilter = document.getElementById("filter-syarat");
     const newJoinerFilter = document.getElementById("filter-new-joiner");
+    const hadirOkFilter = document.getElementById("filter-hadir-ok");
     const normalFilter = document.getElementById("filter-normal");
-    const filterApply = document.getElementById("filter-apply");
     const filterClear = document.getElementById("filter-clear");
     const filterAdvanced = document.getElementById("filter-advanced");
     const personFilters = Array.from(document.querySelectorAll("[data-person-filter]"));
@@ -316,6 +441,11 @@
     const guideText = document.getElementById("sheet-guide-text");
     const guideTerms = document.getElementById("sheet-guide-terms");
     const termBank = document.getElementById("term-bank");
+    const cards = document.getElementById("compare-cards");
+    const bandingCards = document.getElementById("banding-cards");
+    const fileSelect = document.getElementById("unggah-select");
+    let cardFocus = "perhatian";
+    let bandingFocus = "";
 
     function sectionOf(tab) {
       return document.getElementById("sheet-" + tab.dataset.sheet);
@@ -394,10 +524,10 @@
     }
 
     function filtersActive() {
-      if (!statusFilter) return false;
       return Boolean(
         (statusFilter && statusFilter.value) ||
         (lokasiFilter && lokasiFilter.value) ||
+        (lokasiSearch && lokasiSearch.value.trim()) ||
         (gajiDari && gajiDari.value) ||
         (gajiSampai && gajiSampai.value) ||
         (hitungDari && hitungDari.value) ||
@@ -408,22 +538,81 @@
         (alpaSampai && alpaSampai.value) ||
         (syaratFilter && syaratFilter.value) ||
         (newJoinerFilter && newJoinerFilter.value) ||
-        (normalFilter && normalFilter.checked)
+        (hadirOkFilter && hadirOkFilter.value) ||
+        (normalFilter && normalFilter.checked) ||
+        (cardFocus && cardFocus !== "all")
       );
+    }
+
+    function isPerhatianRow(row) {
+      const selisih = rowNumber(row, "selisih");
+      const deposit = rowNumber(row, "deposit");
+      return Boolean(
+        (selisih !== null && Math.abs(selisih) > 1) ||
+        row.dataset.newJoiner === "1" ||
+        row.dataset.syarat === "1" ||
+        row.dataset.hadirOk === "0" ||
+        (deposit !== null && deposit > 0)
+      );
+    }
+
+    function resetCardFilters() {
+      if (depositFilter) depositFilter.value = "";
+      if (selisihFilter) selisihFilter.value = "";
+      if (newJoinerFilter) newJoinerFilter.value = "";
+      if (syaratFilter) syaratFilter.value = "";
+      if (hadirOkFilter) hadirOkFilter.value = "";
+      if (normalFilter) normalFilter.checked = false;
+    }
+
+    function applyCardFocus(focus) {
+      cardFocus = focus || "all";
+      resetCardFilters();
+      if (cardFocus === "selisih" && selisihFilter) selisihFilter.value = "ada";
+      else if (cardFocus === "new_joiner" && newJoinerFilter) newJoinerFilter.value = "ya";
+      else if (cardFocus === "deposit" && depositFilter) depositFilter.value = "ada";
+      else if (cardFocus === "hadir_kurang" && hadirOkFilter) hadirOkFilter.value = "kurang";
+      else if (cardFocus === "hadir_ok" && hadirOkFilter) hadirOkFilter.value = "cukup";
+      else if (cardFocus === "normal" && normalFilter) normalFilter.checked = true;
+      if (cards) {
+        cards.querySelectorAll(".compare-card").forEach(function (card) {
+          card.classList.toggle("is-on", card.getAttribute("data-filter") === cardFocus);
+        });
+      }
     }
 
     function syncClear() {
       if (!filterClear) return;
       const active = Boolean((input && input.value.trim()) || filtersActive());
       filterClear.hidden = !active;
-      if (filterAdvanced && filtersActive()) filterAdvanced.open = true;
+      const advancedOnly = Boolean(
+        (gajiDari && gajiDari.value) ||
+        (gajiSampai && gajiSampai.value) ||
+        (hitungDari && hitungDari.value) ||
+        (hitungSampai && hitungSampai.value) ||
+        (depositFilter && depositFilter.value) ||
+        (selisihFilter && selisihFilter.value) ||
+        (alpaDari && alpaDari.value) ||
+        (alpaSampai && alpaSampai.value) ||
+        (syaratFilter && syaratFilter.value) ||
+        (newJoinerFilter && newJoinerFilter.value) ||
+        (hadirOkFilter && hadirOkFilter.value)
+      );
+      if (filterAdvanced && advancedOnly) filterAdvanced.open = true;
     }
 
     function syncToolbar(tab) {
       const person = tab && tab.getAttribute("data-person") === "1";
+      const onBanding = tab && tab.getAttribute("data-banding-sheet") === "1";
       personFilters.forEach(function (node) {
         node.hidden = !person;
       });
+      if (bandingCards) {
+        bandingCards.querySelectorAll(".compare-card").forEach(function (card) {
+          const want = bandingFocus || "";
+          card.classList.toggle("is-on", onBanding && want && card.getAttribute("data-banding") === want);
+        });
+      }
       if (tab) {
         const groupId = tab.getAttribute("data-group");
         stageTabs.forEach(function (stage) {
@@ -444,11 +633,25 @@
       if (row.classList.contains("is-total")) return true;
       const haystack = (row.dataset.text || "").toLowerCase();
       if (text && haystack.indexOf(text) === -1 && !(digits && haystack.indexOf(digits) !== -1)) return false;
-      if (!statusFilter) return true;
       const tab = document.querySelector(".sheet-tab.is-on");
+      if (tab && tab.getAttribute("data-banding-sheet") === "1") {
+        if (!text && bandingFocus && bandingFocus !== "all") {
+          if ((row.dataset.banding || "") !== bandingFocus) return false;
+        }
+        return true;
+      }
       if (!(tab && tab.getAttribute("data-person") === "1")) return true;
-      if (statusFilter.value && (row.dataset.status || "") !== statusFilter.value) return false;
+      // Search overrides card focus (same as Cek unggahan)
+      if (!text) {
+        if (cardFocus === "perhatian" && !isPerhatianRow(row)) return false;
+      }
+      if (statusFilter && statusFilter.value && (row.dataset.status || "") !== statusFilter.value) return false;
       if (lokasiFilter && lokasiFilter.value && (row.dataset.lokasi || "") !== lokasiFilter.value) return false;
+      if (lokasiSearch && lokasiSearch.value.trim()) {
+        const want = lokasiSearch.value.trim().toLowerCase();
+        const loc = (row.dataset.lokasi || "").toLowerCase();
+        if (loc.indexOf(want) === -1) return false;
+      }
       if (!inRange(rowNumber(row, "gajiPokok"), numValue(gajiDari), numValue(gajiSampai))) return false;
       if (!inRange(rowNumber(row, "gajiHitung"), numValue(hitungDari), numValue(hitungSampai))) return false;
       if (depositFilter && depositFilter.value) {
@@ -458,10 +661,10 @@
       }
       if (selisihFilter && selisihFilter.value) {
         const selisih = rowNumber(row, "selisih");
-        if (selisihFilter.value === "ada" && !(selisih !== null && selisih !== 0)) return false;
-        if (selisihFilter.value === "nol" && !(selisih === null || selisih === 0)) return false;
-        if (selisihFilter.value === "plus" && !(selisih !== null && selisih > 0)) return false;
-        if (selisihFilter.value === "minus" && !(selisih !== null && selisih < 0)) return false;
+        if (selisihFilter.value === "ada" && !(selisih !== null && Math.abs(selisih) > 1)) return false;
+        if (selisihFilter.value === "nol" && !(selisih === null || Math.abs(selisih) <= 1)) return false;
+        if (selisihFilter.value === "plus" && !(selisih !== null && selisih > 1)) return false;
+        if (selisihFilter.value === "minus" && !(selisih !== null && selisih < -1)) return false;
       }
       if (!inRange(rowNumber(row, "alpa"), numValue(alpaDari), numValue(alpaSampai))) return false;
       if (syaratFilter && syaratFilter.value) {
@@ -474,6 +677,11 @@
         if (newJoinerFilter.value === "ya" && !isNew) return false;
         if (newJoinerFilter.value === "bukan" && isNew) return false;
       }
+      if (hadirOkFilter && hadirOkFilter.value) {
+        const flag = row.dataset.hadirOk || "";
+        if (hadirOkFilter.value === "kurang" && flag !== "0") return false;
+        if (hadirOkFilter.value === "cukup" && flag !== "1") return false;
+      }
       if (normalFilter && normalFilter.checked && row.dataset.normal !== "1") return false;
       return true;
     }
@@ -483,7 +691,7 @@
       if (!tab) return;
       syncToolbar(tab);
       const section = sectionOf(tab);
-      const text = input.value.toLowerCase().trim();
+      const text = (input && input.value || "").toLowerCase().trim();
       const digits = text.replace(/\D/g, "");
       let visible = 0;
       let counted = 0;
@@ -496,7 +704,12 @@
         if (match) visible += 1;
       });
       const narrowed = Boolean(text || (tab.getAttribute("data-person") === "1" && filtersActive()));
-      shown.textContent = narrowed ? visible + " dari " + counted + " baris" : counted + " baris";
+      if (shown) {
+        shown.textContent = text
+          ? visible + " hasil pencarian dari " + counted
+          : (narrowed ? visible + " ditampilkan · " + counted + " total" : counted + " baris");
+      }
+      if (searchHint) searchHint.hidden = !text;
       const empty = section.querySelector(".sheet-empty");
       if (empty) empty.hidden = visible !== 0;
       syncClear();
@@ -504,15 +717,33 @@
 
     function clearFilters() {
       if (input) input.value = "";
-      [statusFilter, lokasiFilter, depositFilter, selisihFilter, syaratFilter, newJoinerFilter].forEach(function (field) {
+      if (lokasiSearch) lokasiSearch.value = "";
+      [statusFilter, lokasiFilter].forEach(function (field) {
         if (field) field.value = "";
       });
       [gajiDari, gajiSampai, hitungDari, hitungSampai, alpaDari, alpaSampai].forEach(function (field) {
         if (field) field.value = "";
       });
-      if (normalFilter) normalFilter.checked = false;
       if (filterAdvanced) filterAdvanced.open = false;
+      applyCardFocus("all");
       apply();
+    }
+
+    function syncLokasiControls(source) {
+      if (!lokasiFilter || !lokasiSearch) return;
+      if (source === "select") {
+        lokasiSearch.value = lokasiFilter.value || "";
+      } else if (source === "search") {
+        const typed = lokasiSearch.value.trim().toLowerCase();
+        if (!typed) {
+          lokasiFilter.value = "";
+          return;
+        }
+        const exact = Array.from(lokasiFilter.options).find(function (opt) {
+          return opt.value && opt.value.toLowerCase() === typed;
+        });
+        lokasiFilter.value = exact ? exact.value : "";
+      }
     }
 
     function show(tab) {
@@ -536,11 +767,72 @@
         showGroup(groupId, first);
       });
     });
-    input.addEventListener("input", apply);
-    if (filterApply) filterApply.addEventListener("click", apply);
+    if (input) input.addEventListener("input", apply);
+    if (fileSelect) {
+      fileSelect.addEventListener("change", function () {
+        const opt = fileSelect.options[fileSelect.selectedIndex];
+        if (!opt) return;
+        const book = fileSelect.getAttribute("data-book") || "hitung";
+        const href = book === "transfer" ? opt.getAttribute("data-transfer") : opt.getAttribute("data-hitung");
+        if (href) window.location.href = href;
+      });
+    }
+    if (cards) {
+      cards.addEventListener("click", function (event) {
+        const card = event.target.closest("[data-filter]");
+        if (!card) return;
+        if (input) input.value = "";
+        applyCardFocus(card.getAttribute("data-filter"));
+        apply();
+      });
+    }
+    if (bandingCards) {
+      bandingCards.addEventListener("click", function (event) {
+        const card = event.target.closest("[data-banding]");
+        if (!card) return;
+        bandingFocus = card.getAttribute("data-banding") || "all";
+        bandingCards.querySelectorAll(".compare-card").forEach(function (item) {
+          item.classList.toggle("is-on", item === card);
+        });
+        if (input) input.value = "";
+        const target = tabs.find(function (tab) {
+          return tab.getAttribute("data-banding-sheet") === "1" || tab.getAttribute("data-sheet") === "banding";
+        });
+        if (target) {
+          const groupId = target.getAttribute("data-group");
+          if (groupId) showGroup(groupId, target);
+          else show(target);
+        } else {
+          apply();
+        }
+      });
+    }
+    if (lokasiSearch) {
+      lokasiSearch.addEventListener("input", function () {
+        syncLokasiControls("search");
+        apply();
+      });
+      lokasiSearch.addEventListener("change", function () {
+        syncLokasiControls("search");
+        apply();
+      });
+    }
     if (filterClear) filterClear.addEventListener("click", clearFilters);
-    [statusFilter, lokasiFilter, depositFilter, selisihFilter, syaratFilter, newJoinerFilter].forEach(function (field) {
-      if (field) field.addEventListener("change", apply);
+    [statusFilter, lokasiFilter, depositFilter, selisihFilter, syaratFilter, newJoinerFilter, hadirOkFilter].forEach(function (field) {
+      if (!field) return;
+      field.addEventListener("change", function () {
+        if (field === lokasiFilter) syncLokasiControls("select");
+        if (field === depositFilter || field === selisihFilter || field === newJoinerFilter || field === hadirOkFilter) {
+          if (field === hadirOkFilter && hadirOkFilter.value === "kurang") cardFocus = "hadir_kurang";
+          else if (field === hadirOkFilter && hadirOkFilter.value === "cukup") cardFocus = "hadir_ok";
+          else cardFocus = "all";
+          if (cards) cards.querySelectorAll(".compare-card").forEach(function (card) {
+            const want = cardFocus === "all" ? "all" : cardFocus;
+            card.classList.toggle("is-on", card.getAttribute("data-filter") === want);
+          });
+        }
+        apply();
+      });
     });
     if (normalFilter) normalFilter.addEventListener("change", apply);
     [gajiDari, gajiSampai, hitungDari, hitungSampai, alpaDari, alpaSampai].forEach(function (field) {
@@ -552,6 +844,7 @@
         apply();
       }
     });
+    if (cards) applyCardFocus(cardFocus);
 
     document.querySelectorAll(".sheet").forEach(function (section) {
       section.querySelectorAll("thead .sort-link").forEach(function (button) {

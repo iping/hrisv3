@@ -1349,7 +1349,16 @@ def _money_text(value) -> str:
     return "Rp " + f"{number:,}".replace(",", ".")
 
 
-def _add_log(db, officer_id: int, bagian: str, label: str, before, after) -> None:
+def _add_log(
+    db,
+    officer_id: int,
+    bagian: str,
+    label: str,
+    before,
+    after,
+    source: str = "",
+    detail: str = "",
+) -> None:
     old = _text(before).strip()
     new = _text(after).strip()
     if old == new:
@@ -1359,11 +1368,23 @@ def _add_log(db, officer_id: int, bagian: str, label: str, before, after) -> Non
         """
         INSERT INTO attendance_change_log (
             officer_id, bagian, field_label, before_text, after_text,
+            source, detail,
             actor_user_id, actor_username, actor_nama
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (officer_id, bagian, label, old, new, actor_id, actor_username, actor_nama),
+        (
+            officer_id,
+            bagian,
+            label,
+            old,
+            new,
+            (source or "").strip(),
+            (detail or "").strip(),
+            actor_id,
+            actor_username,
+            actor_nama,
+        ),
     )
 
 
@@ -1620,11 +1641,13 @@ def profile_log(officer_id: int) -> list[dict]:
         "rekening": "Rekening",
         "status": "Status",
         "payroll": "Payroll",
+        "unggah": "Dari unggahan",
     }
     with connect() as db:
         rows = db.execute(
             """
             SELECT bagian, field_label, before_text, after_text, created_at,
+                   COALESCE(source, '') AS source, COALESCE(detail, '') AS detail,
                    actor_username, actor_nama
             FROM attendance_change_log
             WHERE officer_id = ?
@@ -1640,6 +1663,8 @@ def profile_log(officer_id: int) -> list[dict]:
             row["change"] = f"{row['before_text']} → {row['after_text']}"
         else:
             row["change"] = row["after_text"]
+        where_bits = [bit for bit in (row.get("source") or "", row.get("detail") or "") if bit]
+        row["where"] = " · ".join(where_bits)
     return rows
 
 
@@ -2724,6 +2749,40 @@ def officer_status_index() -> dict[str, dict]:
             "label": row["status_label"],
             "code": row["account_code"],
             "testing": bool(row.get("testing")),
+        }
+    return index
+
+
+def min_work_days_index() -> dict[str, dict]:
+    """Effective minimum hadir days per username (officer override, else location)."""
+    with connect() as db:
+        rows = db.execute(
+            """
+            SELECT o.username, o.min_work_days,
+                   l.min_work_days AS location_work_days
+            FROM attendance_officers o
+            LEFT JOIN LATERAL (
+                SELECT location_id
+                FROM attendance_placements
+                WHERE officer_id = o.id
+                ORDER BY (end_date IS NULL) DESC, start_date DESC
+                LIMIT 1
+            ) p ON TRUE
+            LEFT JOIN attendance_locations l ON l.id = COALESCE(p.location_id, o.pending_location_id)
+            """
+        ).fetchall()
+    index = {}
+    for row in rows:
+        key = (row.get("username") or "").strip().lower()
+        if not key:
+            continue
+        own = row.get("min_work_days")
+        place = row.get("location_work_days")
+        effective = own if own is not None else place
+        index[key] = {
+            "min_work_days": int(effective) if effective is not None else None,
+            "from_officer": own is not None,
+            "from_location": own is None and place is not None,
         }
     return index
 
@@ -4273,3 +4332,250 @@ def save_account(officer_id: int, form) -> str:
         )
         _write_changes(db, officer_id, "rekening", before, _account_facts(db, officer_id))
     return ""
+
+
+def _day_iso(value) -> str:
+    found = _as_date(value)
+    return found.isoformat() if found else ""
+
+
+def apply_upload_profiles(
+    path,
+    *,
+    upload_id: str = "",
+    source_name: str = "",
+    period: str = "",
+) -> dict:
+    """Apply Officer Profile fields from an upload into attendance_officers and log each change."""
+    from archive import load_profiles
+    from pathlib import Path
+
+    source = Path(path)
+    if not source.is_file():
+        return {"updated": 0, "fields": 0, "officers": [], "error": "File sumber tidak ditemukan."}
+    profiles = load_profiles(source)
+    if not profiles:
+        return {"updated": 0, "fields": 0, "officers": [], "error": "Sheet Officer Profile kosong / tidak ada."}
+
+    source_label = (source_name or source.name).strip() or "unggahan"
+    where_detail = " · ".join(bit for bit in (period or "", f"unggahan {upload_id}" if upload_id else "") if bit)
+    by_user: dict[str, dict] = {}
+    for profile in profiles.values():
+        user = (profile.get("username") or "").strip().lower()
+        if not user or "deleted at" in user:
+            continue
+        # Prefer activated / non-empty bank rows when username repeats
+        prev = by_user.get(user)
+        if prev is None:
+            by_user[user] = profile
+            continue
+        prev_score = bool(prev.get("bank") or prev.get("rekening") or prev.get("phone"))
+        new_score = bool(profile.get("bank") or profile.get("rekening") or profile.get("phone"))
+        if new_score and not prev_score:
+            by_user[user] = profile
+
+    updated_officers = []
+    field_changes = 0
+    with connect() as db:
+        officers = db.execute(
+            """
+            SELECT o.id, o.username, o.nama, o.phone, o.email, o.bank, o.rekening,
+                   o.joined_date, o.resigned_date, o.pemilik_sendiri, o.pemilik_rekening,
+                   l.name AS lokasi, l.id AS location_id
+            FROM attendance_officers o
+            LEFT JOIN LATERAL (
+                SELECT location_id
+                FROM attendance_placements
+                WHERE officer_id = o.id
+                ORDER BY (end_date IS NULL) DESC, start_date DESC
+                LIMIT 1
+            ) p ON TRUE
+            LEFT JOIN attendance_locations l ON l.id = COALESCE(p.location_id, o.pending_location_id)
+            """
+        ).fetchall()
+        locations = {
+            (row["name"] or "").strip().lower(): row["id"]
+            for row in db.execute("SELECT id, name FROM attendance_locations").fetchall()
+            if (row.get("name") or "").strip()
+        }
+
+        for officer in officers:
+            user = (officer.get("username") or "").strip().lower()
+            profile = by_user.get(user)
+            if not profile:
+                continue
+            officer_id = officer["id"]
+            changes = []
+
+            def set_text(column: str, label: str, bagian: str, new_value: str, old_value: str):
+                nonlocal field_changes
+                new_value = (new_value or "").strip()
+                old_value = (old_value or "").strip()
+                if not new_value or new_value == old_value:
+                    return
+                db.execute(
+                    f"UPDATE attendance_officers SET {column} = ? WHERE id = ?",
+                    (new_value, officer_id),
+                )
+                _add_log(
+                    db,
+                    officer_id,
+                    bagian,
+                    label,
+                    old_value,
+                    new_value,
+                    source=source_label,
+                    detail=where_detail,
+                )
+                changes.append(label)
+                field_changes += 1
+
+            set_text("nama", "Nama", "unggah", profile.get("nama") or "", officer.get("nama") or "")
+            set_text("phone", "Phone", "unggah", profile.get("phone") or "", officer.get("phone") or "")
+            set_text("email", "Email", "unggah", profile.get("email") or "", officer.get("email") or "")
+            set_text("bank", "Bank", "unggah", profile.get("bank") or "", officer.get("bank") or "")
+            set_text(
+                "rekening",
+                "Nomor rekening",
+                "unggah",
+                "".join(ch for ch in (profile.get("rekening") or "") if ch.isdigit()),
+                officer.get("rekening") or "",
+            )
+
+            new_joined = _day_iso(profile.get("joined"))
+            old_joined = _day_iso(officer.get("joined_date"))
+            if new_joined and new_joined != old_joined:
+                db.execute(
+                    "UPDATE attendance_officers SET joined_date = ? WHERE id = ?",
+                    (new_joined, officer_id),
+                )
+                _add_log(
+                    db,
+                    officer_id,
+                    "unggah",
+                    "Tanggal masuk",
+                    old_joined,
+                    new_joined,
+                    source=source_label,
+                    detail=where_detail,
+                )
+                changes.append("Tanggal masuk")
+                field_changes += 1
+
+            new_resign = _day_iso(profile.get("resigned"))
+            old_resign = _day_iso(officer.get("resigned_date"))
+            if new_resign and new_resign != old_resign:
+                db.execute(
+                    "UPDATE attendance_officers SET resigned_date = ? WHERE id = ?",
+                    (new_resign, officer_id),
+                )
+                _add_log(
+                    db,
+                    officer_id,
+                    "unggah",
+                    "Tanggal resign",
+                    old_resign,
+                    new_resign,
+                    source=source_label,
+                    detail=where_detail,
+                )
+                changes.append("Tanggal resign")
+                field_changes += 1
+
+            # Keep pemilik rekening aligned when account is "sendiri" and nama changed
+            if officer.get("pemilik_sendiri") and (profile.get("nama") or "").strip():
+                new_nama = (profile.get("nama") or "").strip()
+                old_owner = (officer.get("pemilik_rekening") or "").strip()
+                if new_nama and new_nama != old_owner:
+                    db.execute(
+                        "UPDATE attendance_officers SET pemilik_rekening = ? WHERE id = ?",
+                        (new_nama, officer_id),
+                    )
+                    _add_log(
+                        db,
+                        officer_id,
+                        "unggah",
+                        "Pemilik rekening",
+                        old_owner,
+                        new_nama,
+                        source=source_label,
+                        detail=where_detail,
+                    )
+                    changes.append("Pemilik rekening")
+                    field_changes += 1
+
+            lokasi_baru = (profile.get("lokasi") or "").strip()
+            lokasi_lama = (officer.get("lokasi") or "").strip()
+            if lokasi_baru and lokasi_baru.casefold() != lokasi_lama.casefold():
+                location_id = locations.get(lokasi_baru.casefold())
+                if location_id:
+                    place = db.execute(
+                        """
+                        SELECT id, location_id FROM attendance_placements
+                        WHERE officer_id = ? AND end_date IS NULL
+                        ORDER BY start_date DESC LIMIT 1
+                        """,
+                        (officer_id,),
+                    ).fetchone()
+                    if place and place["location_id"] != location_id:
+                        today = date.today().isoformat()
+                        db.execute(
+                            "UPDATE attendance_placements SET end_date = ? WHERE id = ?",
+                            (today, place["id"]),
+                        )
+                        db.execute(
+                            """
+                            INSERT INTO attendance_placements (officer_id, location_id, start_date)
+                            VALUES (?, ?, ?)
+                            """,
+                            (officer_id, location_id, today),
+                        )
+                    elif not place:
+                        db.execute(
+                            "UPDATE attendance_officers SET pending_location_id = ? WHERE id = ?",
+                            (location_id, officer_id),
+                        )
+                    _add_log(
+                        db,
+                        officer_id,
+                        "unggah",
+                        "Lokasi",
+                        lokasi_lama,
+                        lokasi_baru,
+                        source=source_label,
+                        detail=where_detail,
+                    )
+                    changes.append("Lokasi")
+                    field_changes += 1
+                else:
+                    _add_log(
+                        db,
+                        officer_id,
+                        "unggah",
+                        "Lokasi (belum di sistem)",
+                        lokasi_lama,
+                        lokasi_baru,
+                        source=source_label,
+                        detail=where_detail + " · lokasi belum ada di Data lokasi",
+                    )
+                    changes.append("Lokasi (catatan)")
+                    field_changes += 1
+
+            if changes:
+                updated_officers.append(
+                    {
+                        "id": officer_id,
+                        "username": officer.get("username") or "",
+                        "nama": (profile.get("nama") or officer.get("nama") or ""),
+                        "fields": changes,
+                    }
+                )
+
+    return {
+        "updated": len(updated_officers),
+        "fields": field_changes,
+        "officers": updated_officers,
+        "error": "",
+        "source": source_label,
+        "period": period or "",
+    }

@@ -69,13 +69,15 @@
     </div>
   </form>
 
+  {% include "_payroll_attendance_activity.html" %}
+
   <h3 class="drawer-sub">Log potongan &amp; tambahan</h3>
   {% if adjustment_log %}
   <ul class="pay-log">
     {% for row in adjustment_log %}
     <li>
       <strong>{{ row.kind_label }}</strong> · {{ row.reason_label }} · {{ row.amount_label }}
-      <span class="muted">{{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
+      <span class="muted">disimpan {{ row.when }} · {{ row.actor_label }}{% if row.note %} · {{ row.note }}{% endif %}</span>
     </li>
     {% endfor %}
   </ul>

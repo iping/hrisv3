@@ -4,14 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Masuk · Payroll</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=47">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body class="login-page">
   <main class="login-wrap">
     <section class="panel login-panel">
-      <p class="kicker">Payroll</p>
+      <div class="brand-mark" aria-hidden="true">P</div>
+      <p class="kicker">Payroll HRIS</p>
       <h1>Masuk</h1>
-      <p class="lede">Pakai akun aplikasi (bukan username petugas).</p>
+      <p class="lede">Pakai akun aplikasi untuk mengelola payroll, lokasi, petugas, dan absensi.</p>
       {% if salah %}
       <p class="banner" role="alert">{{ salah }}</p>
       {% endif %}
@@ -23,7 +24,7 @@
         <label>Password
           <input type="password" name="password" autocomplete="current-password" required>
         </label>
-        <button class="action" type="submit">Masuk</button>
+        <button class="action" type="submit">Masuk ke aplikasi</button>
       </form>
     </section>
   </main>

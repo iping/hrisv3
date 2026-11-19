@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ location.name }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=32">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'penempatan' if tab == 'penempatan' else 'data' %}
@@ -33,8 +33,8 @@
 
     {% elif tab == 'karyawan' %}
     <p class="lede">Petugas yang penempatannya masih berjalan di lokasi ini. Hadir dihitung dari kode Hadir dan Terlambat. Off dihitung dari Off, Cuti, Izin, dan Sakit. Alpa tidak masuk keduanya.{% if team %} Bulan {{ team[0].bulan }}.{% endif %}</p>
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead>
           <tr><th>Petugas</th><th>Status</th><th>Hadir</th><th>Off</th><th>Mulai</th><th></th></tr>
         </thead>
@@ -60,8 +60,8 @@
 
     {% elif tab == 'riwayat' %}
     <p class="lede">Setiap perubahan profil, shift, dan penempatan lokasi ini tercatat di sini, termasuk siapa yang menyimpan.</p>
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead><tr><th>Waktu</th><th>Bagian</th><th>Yang berubah</th><th>Dari → ke</th><th>Oleh</th></tr></thead>
         <tbody>
           {% for row in log %}

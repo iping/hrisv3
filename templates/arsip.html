@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Arsip payroll</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=72">
 </head>
 <body>
   {% set nav = 'arsip' %}
@@ -16,8 +16,8 @@
     {% if not months %}
     <p class="lede">Belum ada bulan tersimpan. Upload tarikan HRIS dulu.</p>
     {% else %}
-    <div class="table-wrap">
-      <table>
+    <div class="sheet-scroll">
+      <table class="grid">
         <thead>
           <tr>
             <th>Periode</th>

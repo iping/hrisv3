@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cek unggahan</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=73">
+</head>
+<body class="grid-page">
+  {% set nav = 'banding' %}
+  {% set wide = true %}
+  {% include "_nav.html" %}
+  {% set is_lokasi = page.tab == 'lokasi' %}
+  {% set is_kehadiran = page.tab == 'kehadiran' %}
+  {% if is_kehadiran %}
+    {% set sum = page.low_attendance_summary %}
+  {% elif is_lokasi %}
+    {% set sum = page.location_summary %}
+  {% else %}
+    {% set sum = page.summary %}
+  {% endif %}
+  {% set dasar_value = (page.baseline.kind ~ ':' ~ page.baseline.id) if page.baseline.kind and page.baseline.id else '' %}
+  <main class="wrap wide">
+    <div class="page-head compare-head">
+      <div>
+        <p class="kicker">Review sebelum lanjut payroll</p>
+        <h1>Cek unggahan</h1>
+        <p class="lede">
+          Lihat apa yang beda antara file tarikan dan data yang sudah ada.
+          Cari nama siapa saja — termasuk yang hanya ada di Officer Profile.
+        </p>
+      </div>
+      {% if page.upload %}
+      <div class="page-actions">
+        <a class="action" href="{{ url_for('view_hitung', sid=page.upload.id) }}">Lanjut ke hitung</a>
+        <a class="button-ghost" href="{{ url_for('home') }}">Ganti file</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if page.error %}
+    <p class="banner" role="alert">{{ page.error }}</p>
+    {% endif %}
+    {% if page.profile_sync and page.profile_sync.updated %}
+    <p class="banner banner-ok" role="status">
+      Profil petugas diperbarui dari unggahan ini:
+      <strong>{{ page.profile_sync.updated }}</strong> petugas,
+      <strong>{{ page.profile_sync.fields }}</strong> field.
+      Detail ada di Riwayat profil masing-masing (bagian Dari unggahan).
+    </p>
+    {% elif page.profile_sync and page.profile_sync.error %}
+    <p class="banner" role="status">Sinkron profil: {{ page.profile_sync.error }}</p>
+    {% endif %}
+
+    {% if page.uploads %}
+    <form method="get" class="compare-bar" id="compare-bar" action="{{ url_for('banding_unggah') }}">
+      <input type="hidden" name="tab" value="{{ page.tab or 'petugas' }}">
+      <input type="hidden" name="fokus" id="fokus-field" value="{{ page.focus or 'perhatian' }}">
+      <label>
+        File unggahan
+        <select name="unggah" id="unggah-select">
+          {% for row in page.uploads %}
+          <option value="{{ row.id }}" {% if page.upload and page.upload.id == row.id %}selected{% endif %}>
+            {{ row.source_name or row.alias }}{% if row.period_start %} · {{ row.period_start }} s/d {{ row.period_end }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if not is_kehadiran %}
+      <label>
+        Dibandingkan dengan
+        <select name="dasar" id="dasar-select">
+          <option value="">Otomatis (data sebelumnya)</option>
+          {% for row in page.uploads if not page.upload or row.id != page.upload.id %}
+          <option value="upload:{{ row.id }}" {% if page.baseline.kind == 'upload' and page.baseline.id == row.id %}selected{% endif %}>
+            Unggahan · {{ row.source_name or row.alias }}
+          </option>
+          {% endfor %}
+          {% for row in page.months %}
+          <option value="month:{{ row.id }}" {% if page.baseline.kind == 'month' and page.baseline.id == row.id|string %}selected{% endif %}>
+            Arsip · {{ row.period_start }} s/d {{ row.period_end }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <p class="compare-baseline muted">
+        Dasar aktif: <strong>{{ page.baseline.label or '—' }}</strong>
+        {% if page.period %} · periode file {{ page.period }}{% endif %}
+      </p>
+      {% else %}
+      <p class="compare-baseline muted">
+        Kehadiran dari sheet Attendance file ini
+        {% if page.period %} · periode {{ page.period }}{% endif %}
+        · batas &lt; {{ page.attend_limit or 10 }} hari hadir (OT+L)
+      </p>
+      {% endif %}
+    </form>
+
+    <nav class="section-switch" aria-label="Jenis data">
+      <a href="{{ url_for('banding_unggah', unggah=page.upload.id if page.upload else '', dasar=dasar_value, fokus='perhatian', tab='petugas') }}" {% if page.tab == 'petugas' %}aria-current="page"{% endif %}>
+        Petugas
+        <span>{{ page.summary.perhatian }} perlu dicek</span>
+      </a>
+      <a href="{{ url_for('banding_unggah', unggah=page.upload.id if page.upload else '', dasar=dasar_value, fokus='perhatian', tab='lokasi') }}" {% if is_lokasi %}aria-current="page"{% endif %}>
+        Lokasi
+        <span>{{ page.location_summary.perhatian }} perlu dicek</span>
+      </a>
+      <a href="{{ url_for('banding_unggah', unggah=page.upload.id if page.upload else '', dasar=dasar_value, fokus='perhatian', tab='kehadiran') }}" {% if is_kehadiran %}aria-current="page"{% endif %}>
+        Kehadiran rendah
+        <span>{{ page.low_attendance_summary.total }} petugas</span>
+      </a>
+    </nav>
+    {% endif %}
+
+    {% if page.upload and not page.error %}
+    <section class="compare-cards" id="compare-cards" aria-label="Saringan cepat">
+      {% if is_kehadiran %}
+      <button type="button" class="compare-card {% if page.focus == 'perhatian' %}is-on{% endif %}" data-filter="perhatian">
+        <span>Perlu dicek</span>
+        <strong>{{ sum.total }}</strong>
+        <em>Hadir &lt; {{ sum.limit }} hari (OT+L)</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'nol' %}is-on{% endif %}" data-filter="nol">
+        <span>Nol kehadiran</span>
+        <strong>{{ sum.nol }}</strong>
+        <em>0 hari hadir di periode ini</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'rendah' %}is-on{% endif %}" data-filter="rendah">
+        <span>1–{{ (sum.limit - 1) }} hari</span>
+        <strong>{{ sum.rendah }}</strong>
+        <em>Ada absen, tapi di bawah batas</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'akun' %}is-on{% endif %}" data-filter="akun">
+        <span>Punya akun</span>
+        <strong>{{ sum.punya_akun }}</strong>
+        <em>Sudah ada di data Petugas</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'all' %}is-on{% endif %}" data-filter="all">
+        <span>Semua</span>
+        <strong>{{ sum.total }}</strong>
+        <em>Punya akun atau di payroll</em>
+      </button>
+      {% elif is_lokasi %}
+      <button type="button" class="compare-card {% if page.focus == 'perhatian' %}is-on{% endif %}" data-filter="perhatian">
+        <span>Perlu dicek</span>
+        <strong>{{ sum.perhatian }}</strong>
+        <em>Baru, berubah, atau hilang</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'baru' %}is-on{% endif %}" data-filter="baru">
+        <span>Lokasi baru</span>
+        <strong>{{ sum.baru }}</strong>
+        <em>Belum ada di data lama / sistem</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'berubah' %}is-on{% endif %}" data-filter="berubah">
+        <span>Berubah</span>
+        <strong>{{ sum.berubah }}</strong>
+        <em>Jumlah petugas beda</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'hilang' %}is-on{% endif %}" data-filter="hilang">
+        <span>Hilang</span>
+        <strong>{{ sum.hilang }}</strong>
+        <em>Ada di sistem, tidak di file</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'all' %}is-on{% endif %}" data-filter="all">
+        <span>Semua lokasi</span>
+        <strong>{{ sum.total }}</strong>
+        <em>Termasuk yang sama</em>
+      </button>
+      {% else %}
+      <button type="button" class="compare-card {% if page.focus == 'perhatian' %}is-on{% endif %}" data-filter="perhatian">
+        <span>Perlu dicek</span>
+        <strong>{{ sum.perhatian }}</strong>
+        <em>Baru {{ sum.baru }} · berubah {{ sum.berubah }} · hilang {{ sum.hilang }}</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'baru' %}is-on{% endif %}" data-filter="baru">
+        <span>Petugas baru</span>
+        <strong>{{ sum.baru }}</strong>
+        <em>New joiner {{ sum.new_joiner }}</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'berubah' %}is-on{% endif %}" data-filter="berubah">
+        <span>Data berubah</span>
+        <strong>{{ sum.berubah }}</strong>
+        <em>Bank, tanggal, lokasi, dll.</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'profil' %}is-on{% endif %}" data-filter="profil">
+        <span>Hanya di profil</span>
+        <strong>{{ sum.profil }}</strong>
+        <em>Di Officer Profile, bukan payroll</em>
+      </button>
+      <button type="button" class="compare-card {% if page.focus == 'all' %}is-on{% endif %}" data-filter="all">
+        <span>Semua petugas</span>
+        <strong>{{ sum.total }}</strong>
+        <em>Cari nama di sini juga</em>
+      </button>
+      {% endif %}
+    </section>
+
+    <div class="compare-search tools">
+      <label class="compare-search-label" for="q">
+        {% if is_lokasi %}Cari lokasi{% elif is_kehadiran %}Cari petugas{% else %}Cari petugas{% endif %}
+        <input id="q" type="search" placeholder="{% if is_lokasi %}Contoh: Ngoerah{% else %}Contoh: Antonius Harapan atau toni{% endif %}" aria-label="Cari" autocomplete="off">
+      </label>
+      <p class="muted" id="shown"></p>
+      <p class="muted compare-search-hint" id="search-hint">Ketik nama untuk mencari di seluruh data, tidak hanya saringan aktif.</p>
+    </div>
+
+    <div class="sheet-scroll">
+      <table class="grid" id="lines">
+        <thead>
+          {% if is_kehadiran %}
+          <tr>
+            <th class="sticky">Nama</th>
+            <th>Username</th>
+            <th>Lokasi</th>
+            <th>Hari hadir</th>
+            <th>Alpa</th>
+            <th>Di Petugas</th>
+            <th>Di Payroll</th>
+            <th>Keterangan</th>
+          </tr>
+          {% elif is_lokasi %}
+          <tr>
+            <th class="sticky">Lokasi</th>
+            <th>Status</th>
+            <th>Di file</th>
+            <th>Profil lokasi</th>
+            <th>Petugas sistem</th>
+            <th>Shift</th>
+            <th>GPS</th>
+            <th>Keterangan</th>
+          </tr>
+          {% else %}
+          <tr>
+            <th class="sticky">Nama</th>
+            <th>Username</th>
+            <th>Lokasi</th>
+            <th>Status banding</th>
+            <th>Masuk</th>
+            <th>Resign</th>
+            <th>Di Petugas</th>
+            <th>Keterangan</th>
+          </tr>
+          {% endif %}
+        </thead>
+        <tbody>
+          {% if is_kehadiran %}
+            {% for row in page.low_attendance %}
+            <tr
+              data-kind="{{ row.kind }}"
+              data-akun="{{ '1' if row.in_karyawan else '0' }}"
+              data-text="{{ (row.lokasi ~ ' ' ~ row.nama ~ ' ' ~ row.username ~ ' ' ~ row.note)|lower }}"
+            >
+              <td class="sticky">
+                <strong>{{ row.nama }}</strong>
+                {% if row.hadir == 0 %}<div><span class="pill pill-resign">0 hadir</span></div>
+                {% else %}<div><span class="pill pill-wait">{{ row.hadir }} hari</span></div>{% endif %}
+              </td>
+              <td>{{ row.username }}</td>
+              <td>{{ row.lokasi or '—' }}</td>
+              <td class="num">{{ row.hadir }}</td>
+              <td class="num">{{ row.alpa }}</td>
+              <td>
+                {% if row.in_karyawan %}
+                  <span class="pill pill-on">{{ row.karyawan_status or 'ada' }}</span>
+                  {% if row.karyawan_id %}<div><a class="text-link" href="{{ url_for('data_profil', officer_id=row.karyawan_id) }}">Buka</a></div>{% endif %}
+                {% elif row.has_profile %}
+                  <span class="pill">Profil saja</span>
+                {% else %}
+                  <span class="pill pill-wait">Belum</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.on_payroll %}<span class="pill pill-on">Ya</span>
+                {% else %}<span class="pill pill-wait">Tidak</span>{% endif %}
+              </td>
+              <td>{{ row.note }}</td>
+            </tr>
+            {% endfor %}
+          {% elif is_lokasi %}
+            {% for row in page.locations %}
+            <tr data-kind="{{ row.kind }}" data-text="{{ (row.name ~ ' ' ~ row.change_text ~ ' ' ~ row.note)|lower }}">
+              <td class="sticky">
+                {% if row.system_id %}
+                <a class="text-link" href="{{ url_for('data_lokasi_profil', location_id=row.system_id) }}">{{ row.name }}</a>
+                {% else %}
+                <strong>{{ row.name }}</strong>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.kind == 'baru' %}<span class="pill pill-baru">Baru</span>
+                {% elif row.kind == 'berubah' %}<span class="pill pill-wait">Berubah</span>
+                {% elif row.kind == 'hilang' %}<span class="pill pill-resign">Hilang</span>
+                {% else %}<span class="pill">Sama</span>{% endif %}
+              </td>
+              <td class="num">
+                {{ row.people }}
+                {% if row.old_people is not none and row.old_people != row.people %}
+                <div class="muted">Lama {{ row.old_people }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.in_system %}
+                  {% if row.system_active %}<span class="pill pill-on">Ada</span>
+                  {% else %}<span class="pill pill-off">Nonaktif</span>{% endif %}
+                {% else %}
+                  <span class="pill pill-wait">Belum</span>
+                {% endif %}
+              </td>
+              <td class="num">{{ row.system_people if row.in_system else '—' }}</td>
+              <td class="num">{{ row.system_shifts if row.in_system else '—' }}</td>
+              <td>{% if not row.in_system %}—{% elif row.has_gps %}<span class="pill pill-on">Ada</span>{% else %}<span class="pill pill-wait">Belum</span>{% endif %}</td>
+              <td>{{ row.change_text or row.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            {% for row in page.rows %}
+            <tr
+              data-kind="{{ row.kind }}"
+              data-status="{{ row.status }}"
+              data-text="{{ (row.lokasi ~ ' ' ~ row.nama ~ ' ' ~ row.username ~ ' ' ~ row.change_text ~ ' ' ~ (row.match_note or ''))|lower }}"
+            >
+              <td class="sticky">
+                <strong>{{ row.nama }}</strong>
+                {% if row.status == 'baru' %}<div><span class="pill pill-baru">New Joiner</span></div>{% endif %}
+              </td>
+              <td>{{ row.username }}</td>
+              <td>
+                {{ row.lokasi }}
+                {% if row.old_lokasi and row.old_lokasi != row.lokasi %}
+                <div class="muted">Lama: {{ row.old_lokasi }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.kind == 'baru' %}<span class="pill pill-baru">Baru</span>
+                {% elif row.kind == 'berubah' %}<span class="pill pill-wait">Berubah</span>
+                {% elif row.kind == 'status' %}<span class="pill pill-on">Status</span>
+                {% elif row.kind == 'hilang' %}<span class="pill pill-resign">Hilang</span>
+                {% elif row.kind == 'profil' %}<span class="pill">Hanya profil</span>
+                {% else %}<span class="pill">Sama</span>{% endif %}
+              </td>
+              <td>{{ row.joined or '—' }}</td>
+              <td>{{ row.resigned or '—' }}</td>
+              <td>
+                {% if row.kind == 'hilang' %}—
+                {% elif row.in_karyawan %}
+                  <span class="pill pill-on">{{ row.karyawan_status or 'ada' }}</span>
+                  {% if row.karyawan_id %}<div><a class="text-link" href="{{ url_for('data_profil', officer_id=row.karyawan_id) }}">Buka</a></div>{% endif %}
+                {% else %}
+                  <span class="pill pill-wait">Belum</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.change_text %}{{ row.change_text }}
+                {% elif row.match_note %}{{ row.match_note }}
+                {% elif row.status_note %}{{ row.status_note }}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <p class="banner" id="empty" hidden>Tidak ada baris yang cocok. Coba kosongkan pencarian atau pilih kartu <strong>Semua</strong>.</p>
+
+    {% elif not page.uploads %}
+    <section class="panel">
+      <h2>Belum ada file</h2>
+      <p class="lede">Unggah tarikan HRIS dulu, lalu kembali ke halaman ini untuk membandingkan petugas dan lokasi.</p>
+      <a class="action" href="{{ url_for('home', unggah=1) }}">Unggah tarikan</a>
+    </section>
+    {% endif %}
+  </main>
+  <script>
+  (function () {
+    var form = document.getElementById("compare-bar");
+    var fokusField = document.getElementById("fokus-field");
+    var cards = document.getElementById("compare-cards");
+    var input = document.getElementById("q");
+    var rows = Array.prototype.slice.call(document.querySelectorAll("#lines tbody tr"));
+    var shown = document.getElementById("shown");
+    var empty = document.getElementById("empty");
+    var hint = document.getElementById("search-hint");
+    var focus = "{{ page.focus or 'perhatian' }}";
+    var tab = "{{ page.tab or 'petugas' }}";
+
+    function matchFocus(row, filter) {
+      var kind = row.getAttribute("data-kind");
+      if (filter === "all") return true;
+      if (tab === "kehadiran") {
+        if (filter === "perhatian") return true;
+        if (filter === "akun") return row.getAttribute("data-akun") === "1";
+        return kind === filter;
+      }
+      if (filter === "perhatian") {
+        if (tab === "lokasi") return kind === "baru" || kind === "berubah" || kind === "hilang";
+        return kind === "baru" || kind === "berubah" || kind === "status" || kind === "hilang";
+      }
+      return kind === filter;
+    }
+
+    function paint() {
+      var q = (input && input.value || "").trim().toLowerCase();
+      var n = 0;
+      rows.forEach(function (row) {
+        var text = row.getAttribute("data-text") || "";
+        var ok;
+        if (q) {
+          ok = text.indexOf(q) !== -1;
+        } else {
+          ok = matchFocus(row, focus);
+        }
+        row.hidden = !ok;
+        if (ok) n += 1;
+      });
+      if (shown) {
+        shown.textContent = q
+          ? n + " hasil pencarian dari " + rows.length
+          : n + " ditampilkan · " + rows.length + " total";
+      }
+      if (hint) hint.hidden = !q;
+      if (empty) empty.hidden = n > 0;
+    }
+
+    if (form) {
+      ["unggah-select", "dasar-select"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener("change", function () { form.submit(); });
+      });
+    }
+
+    if (cards) {
+      cards.addEventListener("click", function (event) {
+        var card = event.target.closest("[data-filter]");
+        if (!card) return;
+        focus = card.getAttribute("data-filter");
+        if (fokusField) fokusField.value = focus;
+        cards.querySelectorAll(".compare-card").forEach(function (item) {
+          item.classList.toggle("is-on", item === card);
+        });
+        if (input) input.value = "";
+        paint();
+        var url = new URL(window.location.href);
+        url.searchParams.set("fokus", focus);
+        window.history.replaceState({}, "", url);
+      });
+    }
+
+    if (input) input.addEventListener("input", paint);
+    paint();
+  })();
+  </script>
+</body>
+</html>

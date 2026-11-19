@@ -1,47 +1,69 @@
 <aside class="side" id="side">
   <div class="side-head">
-    <a class="brand" href="{{ url_for('home') }}">Payroll</a>
+    <a class="brand" href="{{ url_for('home') }}">
+      Payroll
+      <small>HRIS operasional</small>
+    </a>
     <button type="button" class="side-close" id="side-close" aria-label="Tutup menu">Tutup</button>
   </div>
   <nav class="site-nav" aria-label="Menu utama">
-    <a href="{{ url_for('home') }}" {% if nav == 'payroll' %}aria-current="page"{% endif %}>
-      Payroll
-      <span>Transaksi gaji bulan ini</span>
-    </a>
-    <a href="{{ url_for('data_lokasi') }}" {% if nav == 'data' %}aria-current="page"{% endif %}>
-      Lokasi
-      <span>Daftar lokasi dan shift</span>
-    </a>
-    <a href="{{ url_for('data_karyawan') }}" {% if nav == 'petugas' %}aria-current="page"{% endif %}>
-      Petugas
-      <span>Daftar officer</span>
-    </a>
-    <a href="{{ url_for('penempatan') }}" {% if nav == 'penempatan' %}aria-current="page"{% endif %}>
-      Penempatan shift
-      <span>Siapa menghadiri shift yang mana</span>
-    </a>
-    <a href="{{ url_for('absensi') }}" {% if nav == 'absensi' %}aria-current="page"{% endif %}>
-      Absensi
-      <span>Jadwal, absen, dan banding</span>
-    </a>
-    <a href="{{ url_for('arsip') }}" {% if nav == 'arsip' %}aria-current="page"{% endif %}>
-      Arsip
-      <span>Bulan yang sudah disimpan</span>
-    </a>
-    <a href="{{ url_for('kegiatan') }}" {% if nav == 'riwayat' %}aria-current="page"{% endif %}>
-      Riwayat
-      <span>File dan catatan</span>
-    </a>
-    <a href="{{ url_for('istilah') }}" {% if nav == 'bantuan' %}aria-current="page"{% endif %}>
-      Bantuan
-      <span>Arti istilah di layar</span>
-    </a>
-    {% if current_user and current_user.is_admin %}
-    <a href="{{ url_for('users') }}" {% if nav == 'pengaturan' %}aria-current="page"{% endif %}>
-      Pengguna aplikasi
-      <span>Akun masuk ke sistem</span>
-    </a>
-    {% endif %}
+    <div class="nav-group" aria-label="Kerja">
+      <p class="nav-label">Kerja</p>
+      <a href="{{ url_for('home') }}" {% if nav == 'payroll' %}aria-current="page"{% endif %}>
+        Payroll
+        <span>Unggah &amp; hitung gaji</span>
+      </a>
+      <a href="{{ url_for('banding_unggah') }}" {% if nav == 'banding' %}aria-current="page"{% endif %}>
+        Cek unggahan
+        <span>Banding file vs data lama</span>
+      </a>
+      <a href="{{ url_for('arsip') }}" {% if nav == 'arsip' %}aria-current="page"{% endif %}>
+        Arsip
+        <span>Bulan yang sudah disimpan</span>
+      </a>
+      <a href="{{ url_for('kegiatan') }}" {% if nav == 'riwayat' %}aria-current="page"{% endif %}>
+        Riwayat
+        <span>File dan catatan</span>
+      </a>
+    </div>
+
+    <div class="nav-group" aria-label="Data master">
+      <p class="nav-label">Data</p>
+      <a href="{{ url_for('data_lokasi') }}" {% if nav == 'data' %}aria-current="page"{% endif %}>
+        Lokasi
+        <span>Profil lokasi</span>
+      </a>
+      <a href="{{ url_for('data_karyawan') }}" {% if nav == 'petugas' %}aria-current="page"{% endif %}>
+        Petugas
+        <span>Profil officer</span>
+      </a>
+      <a href="{{ url_for('penempatan') }}" {% if nav == 'penempatan' %}aria-current="page"{% endif %}>
+        Penempatan
+        <span>Shift per petugas</span>
+      </a>
+    </div>
+
+    <div class="nav-group" aria-label="Operasional">
+      <p class="nav-label">Operasional</p>
+      <a href="{{ url_for('absensi') }}" {% if nav == 'absensi' %}aria-current="page"{% endif %}>
+        Absensi
+        <span>Jadwal, absen, banding</span>
+      </a>
+    </div>
+
+    <div class="nav-group" aria-label="Bantuan">
+      <p class="nav-label">Lainnya</p>
+      <a href="{{ url_for('istilah') }}" {% if nav == 'bantuan' %}aria-current="page"{% endif %}>
+        Bantuan
+        <span>Arti istilah di layar</span>
+      </a>
+      {% if current_user and current_user.is_admin %}
+      <a href="{{ url_for('users') }}" {% if nav == 'pengaturan' %}aria-current="page"{% endif %}>
+        Pengguna aplikasi
+        <span>Akun masuk ke sistem</span>
+      </a>
+      {% endif %}
+    </div>
   </nav>
   {% if current_user %}
   <div class="side-user">
@@ -116,3 +138,4 @@
   paint();
 })();
 </script>
+<script src="{{ url_for('static', filename='datagrid.js') }}?v=72" defer></script>
